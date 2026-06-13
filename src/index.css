@@ -11,16 +11,20 @@ body {
 }
 
 .header {
-  margin-bottom: 16px;
+  margin-bottom: 8px;
 }
 
 .header h1 {
-  margin: 0 0 8px 0;
+  margin: 0;
   font-size: 24px;
   font-weight: 600;
 }
 
-.header p {
+.page-header {
+  margin-bottom: 12px;
+}
+
+.page-header p {
   margin: 0;
   color: #666;
   font-size: 14px;
