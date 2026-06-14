@@ -8,6 +8,6 @@
 
 # 本地和生产统一用 /api/* 路径
 [[redirects]]
-  from = "/api/:table/:action"
-  to = "/.netlify/functions/:table-:action"
+  from = "/api/*"
+  to = "/.netlify/functions/api"
   status = 200
