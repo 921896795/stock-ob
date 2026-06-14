@@ -24,10 +24,6 @@ export default function App() {
   return (
     <ConfigProvider locale={zhCN}>
       <div className="container">
-        <div className="header">
-          <h1>股票数据看板</h1>
-        </div>
-
         <Tabs
           activeKey={activeTab}
           onChange={setActiveTab}
