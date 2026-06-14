@@ -1,4 +1,4 @@
-import { handleDates, handleSectors, handleStocks } from './helpers.js'
+import { handleDates, handleSectors, handleStocks, handleNewHighDates, handleNewHighStocks, handleFirstHighDates, handleFirstHighFirstDates, handleFirstHighStocks } from './helpers.js'
 
 const TABLES = {
   huicai: 'aads_回踩和新高表',
@@ -7,12 +7,30 @@ const TABLES = {
 
 export default async (req) => {
   const url = new URL(req.url)
-  // /api/huicai/dates → ['', 'api', 'huicai', 'dates']
-  // After redirect: /.netlify/functions/api → path is the original
   const parts = url.pathname.split('/').filter(Boolean)
-  // Find 'huicai' or 'qita' in the path
-  const tableKey = parts.find(p => TABLES[p])
+  const tableKey = parts.find(p => TABLES[p] || p === 'newhigh' || p === 'firsthigh')
   const action = parts[parts.length - 1]
+
+  if (tableKey === 'newhigh') {
+    try {
+      if (action === 'dates') return await handleNewHighDates()
+      if (action === 'stocks') return await handleNewHighStocks(req)
+      return new Response(JSON.stringify({ error: 'Invalid action' }), { status: 400 })
+    } catch (err) {
+      return new Response(JSON.stringify({ error: err.message }), { status: 500 })
+    }
+  }
+
+  if (tableKey === 'firsthigh') {
+    try {
+      if (action === 'dates') return await handleFirstHighDates()
+      if (action === 'first-dates') return await handleFirstHighFirstDates()
+      if (action === 'stocks') return await handleFirstHighStocks(req)
+      return new Response(JSON.stringify({ error: 'Invalid action' }), { status: 400 })
+    } catch (err) {
+      return new Response(JSON.stringify({ error: err.message }), { status: 500 })
+    }
+  }
 
   if (!tableKey || !TABLES[tableKey]) {
     return new Response(

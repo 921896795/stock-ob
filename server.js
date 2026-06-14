@@ -125,6 +125,153 @@ Object.entries(TABLES).forEach(([key, table]) => {
   })
 })
 
+// 7天频繁新高 API
+app.get('/api/newhigh/dates', async (req, res) => {
+  try {
+    const [rows] = await pool.execute(
+      'SELECT DISTINCT window_end_date FROM `ads_sig_new_high_largecap_cnt_15d_d` ORDER BY window_end_date DESC'
+    )
+    res.json(rows.map(r => formatDate(r.window_end_date)))
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+app.get('/api/newhigh/stocks', async (req, res) => {
+  try {
+    const page = Math.max(1, parseInt(req.query.page) || 1)
+    const pageSize = Math.min(200, Math.max(1, parseInt(req.query.pageSize) || 100))
+    const date = req.query.date || ''
+    const prefix = req.query.prefix || ''
+    const period = req.query.period || ''
+    const cnt = req.query.cnt || ''
+    const keyword = req.query.keyword || ''
+
+    const conditions = []
+    const params = []
+
+    if (date) { conditions.push('t.window_end_date = ?'); params.push(date) }
+    if (prefix) { conditions.push('t.stock_code LIKE ?'); params.push(`${prefix}%`) }
+    if (period) { conditions.push('t.new_high_period = ?'); params.push(period) }
+    if (cnt) { conditions.push('t.cnt >= ?'); params.push(cnt) }
+    if (keyword) { conditions.push('(t.stock_code LIKE ? OR t.stock_name LIKE ?)'); params.push(`%${keyword}%`, `%${keyword}%`) }
+
+    const where = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : ''
+
+    const [countRows] = await pool.execute(
+      `SELECT COUNT(*) as total FROM \`ads_sig_new_high_largecap_cnt_15d_d\` t ${where}`, params
+    )
+    const total = countRows[0].total
+
+    const offset = (page - 1) * pageSize
+    const [data] = await pool.execute(
+      `SELECT t.id, t.window_start_date, t.window_end_date, t.new_high_period,
+              t.stock_code, t.stock_name, t.cnt
+       FROM \`ads_sig_new_high_largecap_cnt_15d_d\` t
+       ${where}
+       ORDER BY t.window_end_date DESC, t.cnt DESC, t.stock_code ASC
+       LIMIT ? OFFSET ?`,
+      [...params, String(pageSize), String(offset)]
+    )
+
+    const formatted = data.map(row => ({
+      ...row,
+      window_start_date: formatDate(row.window_start_date),
+      window_end_date: formatDate(row.window_end_date),
+    }))
+
+    res.json({ total, page, pageSize, data: formatted })
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// 7天首次新高 API
+app.get('/api/firsthigh/dates', async (req, res) => {
+  try {
+    const [rows] = await pool.execute(
+      'SELECT DISTINCT window_end_date FROM `ads_sig_new_high_largecap_first_times_d` ORDER BY window_end_date DESC'
+    )
+    res.json(rows.map(r => formatDate(r.window_end_date)))
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+app.get('/api/firsthigh/first-dates', async (req, res) => {
+  try {
+    const cols = ['first_all_time','first_year_5','first_year_4','first_year_3','first_year_2','first_year_1','first_half_year']
+    const unionSql = cols.map(c => `SELECT \`${c}\` as d FROM \`ads_sig_new_high_largecap_first_times_d\` WHERE \`${c}\` IS NOT NULL`).join(' UNION ')
+    const [rows] = await pool.execute(`SELECT DISTINCT d FROM (${unionSql}) t ORDER BY d DESC`)
+    res.json(rows.map(r => formatDate(r.d)))
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+app.get('/api/firsthigh/stocks', async (req, res) => {
+  try {
+    const page = Math.max(1, parseInt(req.query.page) || 1)
+    const pageSize = Math.min(200, Math.max(1, parseInt(req.query.pageSize) || 100))
+    const date = req.query.date || ''
+    const prefix = req.query.prefix || ''
+    const period = req.query.period || ''
+    const firstDate = req.query.firstDate || ''
+    const keyword = req.query.keyword || ''
+
+    // UNPIVOT: 把 first_* 列转成行
+    const unpivotParts = [
+      ["'历史新高'", "first_all_time"],
+      ["'5年新高'", "first_year_5"],
+      ["'4年新高'", "first_year_4"],
+      ["'3年新高'", "first_year_3"],
+      ["'2年新高'", "first_year_2"],
+      ["'1年新高'", "first_year_1"],
+      ["'半年新高'", "first_half_year"],
+    ]
+    const unionSql = unpivotParts.map(([label, col]) =>
+      `SELECT id, window_start_date, window_end_date, stock_code, stock_name, ${label} as new_high_period, \`${col}\` as first_date FROM \`ads_sig_new_high_largecap_first_times_d\` WHERE \`${col}\` IS NOT NULL`
+    ).join(' UNION ALL ')
+
+    const baseQuery = `FROM (${unionSql}) t`
+
+    const conditions = []
+    const params = []
+
+    if (date) { conditions.push('t.window_end_date = ?'); params.push(date) }
+    if (prefix) { conditions.push('t.stock_code LIKE ?'); params.push(`${prefix}%`) }
+    if (period) { conditions.push('t.new_high_period = ?'); params.push(period) }
+    if (firstDate) { conditions.push('t.first_date = ?'); params.push(firstDate) }
+    if (keyword) { conditions.push('(t.stock_code LIKE ? OR t.stock_name LIKE ?)'); params.push(`%${keyword}%`, `%${keyword}%`) }
+
+    const where = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : ''
+
+    const [countRows] = await pool.execute(`SELECT COUNT(*) as total ${baseQuery} ${where}`, params)
+    const total = countRows[0].total
+
+    const offset = (page - 1) * pageSize
+    const [data] = await pool.execute(
+      `SELECT t.id, t.window_start_date, t.window_end_date, t.new_high_period,
+              t.stock_code, t.stock_name, t.first_date
+       ${baseQuery} ${where}
+       ORDER BY t.window_end_date DESC, t.first_date ASC, t.stock_code ASC
+       LIMIT ? OFFSET ?`,
+      [...params, String(pageSize), String(offset)]
+    )
+
+    const formatted = data.map(row => ({
+      ...row,
+      window_start_date: formatDate(row.window_start_date),
+      window_end_date: formatDate(row.window_end_date),
+      first_date: formatDate(row.first_date),
+    }))
+
+    res.json({ total, page, pageSize, data: formatted })
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
 app.listen(PORT, () => {
   console.log(`API server running at http://localhost:${PORT}`)
 })
