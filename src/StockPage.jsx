@@ -27,6 +27,7 @@ const columns = [
     title: 'KDJ-J值', dataIndex: 'sh_index_kdj_j', key: 'sh_index_kdj_j', width: 110, sorter: true,
     render: (v) => v != null ? Number(v).toFixed(2) : '-',
   },
+  { title: '来源表', dataIndex: 'source_table', key: 'source_table', width: 200, ellipsis: true },
   { title: '板块', dataIndex: 'sector_names', key: 'sector_names', width: 300, ellipsis: true },
 ]
 
@@ -158,7 +159,7 @@ export default function StockPage({ apiPath, title }) {
               showSizeChanger: false,
               onChange: (p) => fetchData(p),
             }}
-            scroll={{ x: 1200 }} size="middle"
+            scroll={{ x: 1400 }} size="middle"
           />
         </div>
       </div>
