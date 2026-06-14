@@ -69,6 +69,24 @@ Object.entries(TABLES).forEach(([key, table]) => {
     }
   })
 
+  app.get(`${p}/source-tables`, async (req, res) => {
+    try {
+      const [rows] = await pool.execute(
+        `SELECT DISTINCT source_table FROM \`${table}\` WHERE source_table IS NOT NULL AND source_table != ''`
+      )
+      const set = new Set()
+      rows.forEach(r => {
+        r.source_table.split('、').forEach(s => {
+          const trimmed = s.trim()
+          if (trimmed) set.add(trimmed)
+        })
+      })
+      res.json([...set].sort())
+    } catch (err) {
+      res.status(500).json({ error: err.message })
+    }
+  })
+
   app.get(`${p}/stocks`, async (req, res) => {
     try {
       const page = Math.max(1, parseInt(req.query.page) || 1)
@@ -77,15 +95,25 @@ Object.entries(TABLES).forEach(([key, table]) => {
       const level = req.query.level || ''
       const prefix = req.query.prefix || ''
       const sector = req.query.sector || ''
+      const sourceTable = req.query.sourceTable || ''
       const keyword = req.query.keyword || ''
 
       const conditions = []
       const params = []
 
+      const excludeStandalone = req.query.excludeStandalone === '1'
+
       if (date) { conditions.push('t.target_date = ?'); params.push(date) }
       if (level) { conditions.push('t.opportunity_level = ?'); params.push(level) }
       if (prefix) { conditions.push('t.stock_code LIKE ?'); params.push(`${prefix}%`) }
       if (sector) { conditions.push("FIND_IN_SET(?, REPLACE(t.sector_names, ';', ','))"); params.push(sector) }
+      if (sourceTable) {
+        conditions.push("FIND_IN_SET(?, REPLACE(t.source_table, '、', ','))")
+        params.push(sourceTable)
+        if (excludeStandalone) {
+          conditions.push("t.source_table LIKE '%、%'")
+        }
+      }
       if (keyword) { conditions.push('(t.stock_code LIKE ? OR t.stock_name LIKE ?)'); params.push(`%${keyword}%`, `%${keyword}%`) }
 
       const where = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : ''

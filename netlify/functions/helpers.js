@@ -55,6 +55,25 @@ export async function handleSectors(table) {
   }
 }
 
+export async function handleSourceTables(table) {
+  try {
+    const pool = getPool()
+    const [rows] = await pool.execute(
+      `SELECT DISTINCT source_table FROM \`${table}\` WHERE source_table IS NOT NULL AND source_table != ''`
+    )
+    const set = new Set()
+    rows.forEach(r => {
+      r.source_table.split('、').forEach(s => {
+        const trimmed = s.trim()
+        if (trimmed) set.add(trimmed)
+      })
+    })
+    return jsonResponse([...set].sort())
+  } catch (err) {
+    return jsonResponse({ error: err.message }, 500)
+  }
+}
+
 export async function handleStocks(table, req) {
   try {
     const url = new URL(req.url)
@@ -64,6 +83,8 @@ export async function handleStocks(table, req) {
     const level = url.searchParams.get('level') || ''
     const prefix = url.searchParams.get('prefix') || ''
     const sector = url.searchParams.get('sector') || ''
+    const sourceTable = url.searchParams.get('sourceTable') || ''
+    const excludeStandalone = url.searchParams.get('excludeStandalone') === '1'
     const keyword = url.searchParams.get('keyword') || ''
 
     const pool = getPool()
@@ -74,6 +95,13 @@ export async function handleStocks(table, req) {
     if (level) { conditions.push('t.opportunity_level = ?'); params.push(level) }
     if (prefix) { conditions.push('t.stock_code LIKE ?'); params.push(`${prefix}%`) }
     if (sector) { conditions.push("FIND_IN_SET(?, REPLACE(t.sector_names, ';', ','))"); params.push(sector) }
+    if (sourceTable) {
+      conditions.push("FIND_IN_SET(?, REPLACE(t.source_table, '、', ','))")
+      params.push(sourceTable)
+      if (excludeStandalone) {
+        conditions.push("t.source_table LIKE '%、%'")
+      }
+    }
     if (keyword) { conditions.push('(t.stock_code LIKE ? OR t.stock_name LIKE ?)'); params.push(`%${keyword}%`, `%${keyword}%`) }
 
     const where = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : ''

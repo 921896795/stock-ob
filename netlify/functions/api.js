@@ -1,4 +1,4 @@
-import { handleDates, handleSectors, handleStocks, handleNewHighDates, handleNewHighStocks, handleFirstHighDates, handleFirstHighFirstDates, handleFirstHighStocks } from './helpers.js'
+import { handleDates, handleSectors, handleSourceTables, handleStocks, handleNewHighDates, handleNewHighStocks, handleFirstHighDates, handleFirstHighFirstDates, handleFirstHighStocks } from './helpers.js'
 
 const TABLES = {
   huicai: 'aads_回踩和新高表',
@@ -44,6 +44,7 @@ export default async (req) => {
   try {
     if (action === 'dates') return await handleDates(table)
     if (action === 'sectors') return await handleSectors(table)
+    if (action === 'source-tables') return await handleSourceTables(table)
     if (action === 'stocks') return await handleStocks(table, req)
     return new Response(
       JSON.stringify({ error: 'Invalid action' }),

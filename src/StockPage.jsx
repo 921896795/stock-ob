@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react'
-import { Table, Select, Input, Tag, message } from 'antd'
+import { Table, Select, Input, Tag, Checkbox, message } from 'antd'
 
 const LEVEL_COLORS = {
   '一般恐慌': 'orange',
@@ -38,11 +38,14 @@ export default function StockPage({ apiPath, title }) {
   const [loading, setLoading] = useState(false)
   const [dates, setDates] = useState([])
   const [sectors, setSectors] = useState([])
+  const [sourceTables, setSourceTables] = useState([])
   const [sectorSearch, setSectorSearch] = useState('')
   const [date, setDate] = useState(undefined)
   const [level, setLevel] = useState(undefined)
   const [prefix, setPrefix] = useState(undefined)
   const [sector, setSector] = useState(undefined)
+  const [sourceTable, setSourceTable] = useState(undefined)
+  const [excludeStandalone, setExcludeStandalone] = useState(false)
   const [keyword, setKeyword] = useState('')
 
   useEffect(() => {
@@ -59,6 +62,13 @@ export default function StockPage({ apiPath, title }) {
       .catch(() => {})
   }, [apiPath])
 
+  useEffect(() => {
+    fetch(`${apiPath}/source-tables`)
+      .then(r => r.json())
+      .then(setSourceTables)
+      .catch(() => {})
+  }, [apiPath])
+
   const fetchData = useCallback(async (p = 1) => {
     setLoading(true)
     try {
@@ -67,6 +77,8 @@ export default function StockPage({ apiPath, title }) {
       if (level) params.set('level', level)
       if (prefix) params.set('prefix', prefix)
       if (sector) params.set('sector', sector)
+      if (sourceTable) params.set('sourceTable', sourceTable)
+      if (excludeStandalone) params.set('excludeStandalone', '1')
       if (keyword) params.set('keyword', keyword)
 
       const res = await fetch(`${apiPath}/stocks?${params}`)
@@ -81,7 +93,7 @@ export default function StockPage({ apiPath, title }) {
     } finally {
       setLoading(false)
     }
-  }, [apiPath, date, level, prefix, sector, keyword])
+  }, [apiPath, date, level, prefix, sector, sourceTable, excludeStandalone, keyword])
 
   useEffect(() => {
     fetchData(1)
@@ -125,6 +137,17 @@ export default function StockPage({ apiPath, title }) {
           value={prefix} onChange={(v) => setPrefix(v)}
           options={PREFIX_OPTIONS}
         />
+        <Select
+          allowClear placeholder="来源表" style={{ width: 260 }}
+          value={sourceTable} onChange={(v) => { setSourceTable(v); if (!v) setExcludeStandalone(false); }}
+          options={sourceTables.map(s => ({ label: s, value: s }))}
+          showSearch filterOption={(input, option) => (option?.label ?? '').toLowerCase().includes(input.toLowerCase())}
+        />
+        {sourceTable && (
+          <Checkbox checked={excludeStandalone} onChange={(e) => setExcludeStandalone(e.target.checked)}>
+            排除单独
+          </Checkbox>
+        )}
         <Input.Search
           placeholder="搜索股票代码或名称" style={{ width: 240 }}
           allowClear onSearch={(v) => setKeyword(v)} enterButton="搜索"
