@@ -96,8 +96,11 @@ export async function handleStocks(table, req) {
     if (prefix) { conditions.push('t.stock_code LIKE ?'); params.push(`${prefix}%`) }
     if (sector) { conditions.push("FIND_IN_SET(?, REPLACE(t.sector_names, ';', ','))"); params.push(sector) }
     if (sourceTable) {
-      conditions.push("FIND_IN_SET(?, REPLACE(t.source_table, '、', ','))")
-      params.push(sourceTable)
+      const tables = sourceTable.split(',').filter(Boolean)
+      tables.forEach(t => {
+        conditions.push("FIND_IN_SET(?, REPLACE(t.source_table, '、', ','))")
+        params.push(t)
+      })
       if (excludeStandalone) {
         conditions.push("t.source_table LIKE '%、%'")
       }

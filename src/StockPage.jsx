@@ -77,7 +77,7 @@ export default function StockPage({ apiPath, title }) {
       if (level) params.set('level', level)
       if (prefix) params.set('prefix', prefix)
       if (sector) params.set('sector', sector)
-      if (sourceTable) params.set('sourceTable', sourceTable)
+      if (sourceTable && sourceTable.length > 0) params.set('sourceTable', sourceTable.join(','))
       if (excludeStandalone) params.set('excludeStandalone', '1')
       if (keyword) params.set('keyword', keyword)
 
@@ -138,12 +138,13 @@ export default function StockPage({ apiPath, title }) {
           options={PREFIX_OPTIONS}
         />
         <Select
-          allowClear placeholder="来源表" style={{ width: 260 }}
-          value={sourceTable} onChange={(v) => { setSourceTable(v); if (!v) setExcludeStandalone(false); }}
+          mode="multiple" allowClear placeholder="来源表" style={{ width: 320 }}
+          value={sourceTable} onChange={(v) => { setSourceTable(v); if (!v || v.length === 0) setExcludeStandalone(false); }}
           options={sourceTables.map(s => ({ label: s, value: s }))}
           showSearch filterOption={(input, option) => (option?.label ?? '').toLowerCase().includes(input.toLowerCase())}
+          maxTagCount={2}
         />
-        {sourceTable && (
+        {sourceTable && sourceTable.length > 0 && (
           <Checkbox checked={excludeStandalone} onChange={(e) => setExcludeStandalone(e.target.checked)}>
             排除单独
           </Checkbox>
