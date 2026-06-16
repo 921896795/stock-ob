@@ -11,9 +11,23 @@ export function getPool() {
       password: process.env.DB_PASSWORD,
       database: process.env.DB_NAME,
       waitForConnections: true,
-      connectionLimit: 5,
+      connectionLimit: 3,
       queueLimit: 0,
+      connectTimeout: 5000,
+      acquireTimeout: 8000,
     })
   }
   return pool
+}
+
+export async function queryWithRetry(sql, params = [], retries = 2) {
+  const pool = getPool()
+  for (let i = 0; i <= retries; i++) {
+    try {
+      return await pool.execute(sql, params)
+    } catch (err) {
+      if (i === retries) throw err
+      await new Promise(r => setTimeout(r, 500))
+    }
+  }
 }

@@ -85,11 +85,13 @@ export default function StockPage({ apiPath, title }) {
       const json = await res.json()
 
       if (json.error) throw new Error(json.error)
-      setData(json.data)
-      setTotal(json.total)
+      setData(json.data || [])
+      setTotal(json.total || 0)
       setPage(p)
     } catch (err) {
       message.error('加载数据失败: ' + err.message)
+      setData([])
+      setTotal(0)
     } finally {
       setLoading(false)
     }
