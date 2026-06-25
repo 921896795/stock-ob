@@ -303,6 +303,78 @@ app.get('/api/firsthigh/stocks', async (req, res) => {
   }
 })
 
+// 实时涨跌 API
+app.get('/api/sentiment/data', async (req, res) => {
+  try {
+    const [data] = await pool.execute(
+      `SELECT id, trade_date, snap_time, up_cnt, down_cnt, flat_cnt, total_cnt,
+              limit_up_cnt, limit_down_cnt, limit_level,
+              max_board_cnt, board_level, avg_chg_pct, median_chg_pct
+       FROM \`dws_mkt_sentiment_d\`
+       ORDER BY COALESCE(snap_time, trade_date) DESC`
+    )
+    const formatSnap = (d) => {
+      if (!d) return null
+      const dt = new Date(d)
+      const y = dt.getFullYear()
+      const m = String(dt.getMonth() + 1).padStart(2, '0')
+      const day = String(dt.getDate()).padStart(2, '0')
+      const h = String(dt.getHours()).padStart(2, '0')
+      const min = String(dt.getMinutes()).padStart(2, '0')
+      return `${y}-${m}-${day} ${h}:${min}`
+    }
+    const formatted = data.map(row => ({
+      ...row,
+      trade_date: formatDate(row.trade_date),
+      snap_time: formatSnap(row.snap_time) || formatDate(row.trade_date),
+      avg_chg_pct: row.avg_chg_pct != null ? Number(row.avg_chg_pct).toFixed(2) : null,
+      median_chg_pct: row.median_chg_pct != null ? Number(row.median_chg_pct).toFixed(2) : null,
+    }))
+    res.json(formatted)
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// 盘后涨跌 API（取每天最后一次快照）
+app.get('/api/sentiment/after-hours', async (req, res) => {
+  try {
+    const [data] = await pool.execute(
+      `SELECT t.id, t.trade_date, t.snap_time, t.up_cnt, t.down_cnt, t.flat_cnt, t.total_cnt,
+              t.limit_up_cnt, t.limit_down_cnt, t.limit_level,
+              t.max_board_cnt, t.board_level, t.avg_chg_pct, t.median_chg_pct
+       FROM dws_mkt_sentiment_d t
+       INNER JOIN (
+         SELECT DATE(snap_time) as d, MAX(snap_time) as max_snap
+         FROM dws_mkt_sentiment_d
+         WHERE snap_time IS NOT NULL
+         GROUP BY DATE(snap_time)
+       ) m ON t.snap_time = m.max_snap
+       ORDER BY t.snap_time DESC`
+    )
+    const formatSnap = (d) => {
+      if (!d) return null
+      const dt = new Date(d)
+      const y = dt.getFullYear()
+      const m = String(dt.getMonth() + 1).padStart(2, '0')
+      const day = String(dt.getDate()).padStart(2, '0')
+      const h = String(dt.getHours()).padStart(2, '0')
+      const min = String(dt.getMinutes()).padStart(2, '0')
+      return `${y}-${m}-${day} ${h}:${min}`
+    }
+    const formatted = data.map(row => ({
+      ...row,
+      trade_date: formatDate(row.trade_date),
+      snap_time: formatDate(row.snap_time) || formatDate(row.trade_date),
+      avg_chg_pct: row.avg_chg_pct != null ? Number(row.avg_chg_pct).toFixed(2) : null,
+      median_chg_pct: row.median_chg_pct != null ? Number(row.median_chg_pct).toFixed(2) : null,
+    }))
+    res.json(formatted)
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
 app.listen(PORT, () => {
   console.log(`API server running at http://localhost:${PORT}`)
 })

@@ -4,12 +4,15 @@ import zhCN from 'antd/locale/zh_CN'
 import StockPage from './StockPage'
 import NewHighPage from './NewHighPage'
 import FirstHighPage from './FirstHighPage'
+import SentimentPage from './SentimentPage'
 
 const TABS = [
   { key: 'huicai', label: '回踩和新高', apiPath: '/api/huicai' },
   { key: 'qita', label: '其他模式', apiPath: '/api/qita' },
   { key: 'newhigh', label: '7天频繁新高（200+）', component: 'newhigh' },
   { key: 'firsthigh', label: '7天首次新高（200+）', component: 'firsthigh' },
+  { key: 'sentiment', label: '实时涨跌', component: 'sentiment' },
+  { key: 'afterhours', label: '盘后涨跌', component: 'afterhours' },
 ]
 
 export default function App() {
@@ -18,6 +21,8 @@ export default function App() {
   const renderTab = (t) => {
     if (t.component === 'newhigh') return <NewHighPage />
     if (t.component === 'firsthigh') return <FirstHighPage />
+    if (t.component === 'sentiment') return <SentimentPage apiPath="/api/sentiment/data" />
+    if (t.component === 'afterhours') return <SentimentPage apiPath="/api/sentiment/after-hours" />
     return <StockPage apiPath={t.apiPath} />
   }
 
