@@ -22,11 +22,6 @@ const columns = [
     title: '机会等级', dataIndex: 'opportunity_level', key: 'opportunity_level', width: 140,
     render: (v) => <Tag color={LEVEL_COLORS[v] || 'default'}>{v}</Tag>,
   },
-  { title: '红盘数', dataIndex: 'fall_count', key: 'fall_count', width: 100, sorter: true },
-  {
-    title: 'KDJ-J值', dataIndex: 'sh_index_kdj_j', key: 'sh_index_kdj_j', width: 110, sorter: true,
-    render: (v) => v != null ? Number(v).toFixed(2) : '-',
-  },
   { title: '来源表', dataIndex: 'source_table', key: 'source_table', width: 200, ellipsis: true },
   { title: '板块', dataIndex: 'sector_names', key: 'sector_names', width: 300, ellipsis: true },
 ]
