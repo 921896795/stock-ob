@@ -313,7 +313,7 @@ export async function handleSentimentData() {
     const formatted = data.map(row => ({
       ...row,
       trade_date: formatDate(row.trade_date),
-      snap_time: formatDate(row.snap_time) || formatDate(row.trade_date),
+      snap_time: formatSnap(row.snap_time) || formatDate(row.trade_date),
       avg_chg_pct: row.avg_chg_pct != null ? Number(row.avg_chg_pct).toFixed(2) : null,
       median_chg_pct: row.median_chg_pct != null ? Number(row.median_chg_pct).toFixed(2) : null,
     }))

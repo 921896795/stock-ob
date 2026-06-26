@@ -34,12 +34,12 @@ export default function SentimentPage({ apiPath = '/api/sentiment/data' }) {
 
   // 转置：日期作为列，指标作为行
   const { columns, dataSource } = useMemo(() => {
-    const filtered = onlyIce ? rawData.filter(d => d.up_cnt < 1200) : rawData
+    const filtered = onlyIce ? rawData.filter(d => d.up_cnt < 1000) : rawData
     if (filtered.length === 0) return { columns: [], dataSource: [] }
 
     // 动态列：第一列是"指标"，后面每列一个快照时间
     const dateCols = filtered.map(d => {
-      const isWeak = d.up_cnt < 1200
+      const isWeak = d.up_cnt < 1000
       return {
         title: d.snap_time,
         dataIndex: d.snap_time,
@@ -73,8 +73,8 @@ export default function SentimentPage({ apiPath = '/api/sentiment/data' }) {
 
   // 给单元格加颜色，弱市列用深色文字保证可读性
   const weakDates = useMemo(() => {
-    const filtered = onlyIce ? rawData.filter(d => d.up_cnt < 1200) : rawData
-    return new Set(filtered.filter(d => d.up_cnt < 1200).map(d => d.snap_time))
+    const filtered = onlyIce ? rawData.filter(d => d.up_cnt < 1000) : rawData
+    return new Set(filtered.filter(d => d.up_cnt < 1000).map(d => d.snap_time))
   }, [rawData, onlyIce])
 
   const coloredColumns = columns.map(col => {
