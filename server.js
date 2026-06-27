@@ -375,6 +375,65 @@ app.get('/api/sentiment/after-hours', async (req, res) => {
   }
 })
 
+// 板块排行 API
+const SECTOR_TABLE = 'ods_spider_xgt_sector_di'
+
+app.get(`/api/sector-rank/dates`, async (req, res) => {
+  try {
+    const [rows] = await pool.execute(
+      `SELECT DISTINCT trading_date FROM \`${SECTOR_TABLE}\` ORDER BY trading_date DESC`
+    )
+    res.json(rows.map(r => formatDate(r.trading_date)))
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+app.get(`/api/sector-rank/industries`, async (req, res) => {
+  try {
+    const [rows] = await pool.execute(
+      `SELECT DISTINCT industry_name FROM \`${SECTOR_TABLE}\` ORDER BY industry_name`
+    )
+    res.json(rows.map(r => r.industry_name))
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+app.get(`/api/sector-rank/data`, async (req, res) => {
+  try {
+    const industryName = req.query.industryName || ''
+    const tradingDate = req.query.tradingDate || ''
+    const resultPhase = req.query.resultPhase || ''
+
+    const conditions = []
+    const params = []
+
+    if (industryName) { conditions.push('industry_name LIKE ?'); params.push(`%${industryName}%`) }
+    if (tradingDate) { conditions.push('trading_date = ?'); params.push(tradingDate) }
+    if (resultPhase) { conditions.push('result_phase = ?'); params.push(resultPhase) }
+
+    const where = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : ''
+
+    const [data] = await pool.execute(
+      `SELECT id, industry_name, zt_number, trading_date, result_phase
+       FROM \`${SECTOR_TABLE}\`
+       ${where}
+       ORDER BY trading_date DESC, zt_number DESC`,
+      params
+    )
+
+    const formatted = data.map(row => ({
+      ...row,
+      trading_date: formatDate(row.trading_date),
+    }))
+
+    res.json(formatted)
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
 app.listen(PORT, () => {
   console.log(`API server running at http://localhost:${PORT}`)
 })
