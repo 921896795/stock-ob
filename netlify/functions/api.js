@@ -1,4 +1,4 @@
-import { handleDates, handleSectors, handleSourceTables, handleStocks, handleNewHighDates, handleNewHighStocks, handleFirstHighDates, handleFirstHighFirstDates, handleFirstHighStocks, handleSentimentData, handleSentimentAfterHours } from './helpers.js'
+import { handleDates, handleSectors, handleSourceTables, handleStocks, handleNewHighDates, handleNewHighStocks, handleFirstHighDates, handleFirstHighFirstDates, handleFirstHighStocks, handleSentimentData, handleSentimentAfterHours, handleSectorRankDates, handleSectorRankIndustries, handleSectorRankData } from './helpers.js'
 
 const TABLES = {
   huicai: 'aads_回踩和新高表',
@@ -8,7 +8,7 @@ const TABLES = {
 export default async (req) => {
   const url = new URL(req.url)
   const parts = url.pathname.split('/').filter(Boolean)
-  const tableKey = parts.find(p => TABLES[p] || p === 'newhigh' || p === 'firsthigh' || p === 'sentiment')
+  const tableKey = parts.find(p => TABLES[p] || p === 'newhigh' || p === 'firsthigh' || p === 'sentiment' || p === 'sector-rank')
   const action = parts[parts.length - 1]
 
   if (tableKey === 'newhigh') {
@@ -36,6 +36,17 @@ export default async (req) => {
     try {
       if (action === 'data') return await handleSentimentData()
       if (action === 'after-hours') return await handleSentimentAfterHours()
+      return new Response(JSON.stringify({ error: 'Invalid action' }), { status: 400 })
+    } catch (err) {
+      return new Response(JSON.stringify({ error: err.message }), { status: 500 })
+    }
+  }
+
+  if (tableKey === 'sector-rank') {
+    try {
+      if (action === 'dates') return await handleSectorRankDates()
+      if (action === 'industries') return await handleSectorRankIndustries()
+      if (action === 'data') return await handleSectorRankData(req)
       return new Response(JSON.stringify({ error: 'Invalid action' }), { status: 400 })
     } catch (err) {
       return new Response(JSON.stringify({ error: err.message }), { status: 500 })

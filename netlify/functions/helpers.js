@@ -323,6 +323,66 @@ export async function handleSentimentData() {
   }
 }
 
+// ====== 板块排行 ======
+
+const SECTOR_TABLE = 'ods_spider_xgt_sector_di'
+
+export async function handleSectorRankDates() {
+  try {
+    const [rows] = await queryWithRetry(
+      `SELECT DISTINCT trading_date FROM \`${SECTOR_TABLE}\` ORDER BY trading_date DESC`
+    )
+    return jsonResponse(rows.map(r => formatDate(r.trading_date)))
+  } catch (err) {
+    return jsonResponse({ error: err.message }, 500)
+  }
+}
+
+export async function handleSectorRankIndustries() {
+  try {
+    const [rows] = await queryWithRetry(
+      `SELECT DISTINCT industry_name FROM \`${SECTOR_TABLE}\` ORDER BY industry_name`
+    )
+    return jsonResponse(rows.map(r => r.industry_name))
+  } catch (err) {
+    return jsonResponse({ error: err.message }, 500)
+  }
+}
+
+export async function handleSectorRankData(req) {
+  try {
+    const url = new URL(req.url)
+    const industryName = url.searchParams.get('industryName') || ''
+    const tradingDate = url.searchParams.get('tradingDate') || ''
+    const resultPhase = url.searchParams.get('resultPhase') || ''
+
+    const conditions = []
+    const params = []
+
+    if (industryName) { conditions.push('industry_name LIKE ?'); params.push(`%${industryName}%`) }
+    if (tradingDate) { conditions.push('trading_date = ?'); params.push(tradingDate) }
+    if (resultPhase) { conditions.push('result_phase = ?'); params.push(resultPhase) }
+
+    const where = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : ''
+
+    const [data] = await queryWithRetry(
+      `SELECT id, industry_name, zt_number, trading_date, result_phase
+       FROM \`${SECTOR_TABLE}\`
+       ${where}
+       ORDER BY trading_date DESC, zt_number DESC`,
+      params
+    )
+
+    const formatted = data.map(row => ({
+      ...row,
+      trading_date: formatDate(row.trading_date),
+    }))
+
+    return jsonResponse(formatted)
+  } catch (err) {
+    return jsonResponse({ error: err.message }, 500)
+  }
+}
 export async function handleSentimentAfterHours() {
   try {
     const [data] = await queryWithRetry(
