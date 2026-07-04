@@ -398,20 +398,10 @@ export async function handleSentimentAfterHours() {
        ) m ON t.snap_time = m.max_snap
        ORDER BY t.snap_time DESC`
     )
-    const formatSnap = (d) => {
-      if (!d) return null
-      const dt = new Date(d)
-      const y = dt.getFullYear()
-      const m = String(dt.getMonth() + 1).padStart(2, '0')
-      const day = String(dt.getDate()).padStart(2, '0')
-      const h = String(dt.getHours()).padStart(2, '0')
-      const min = String(dt.getMinutes()).padStart(2, '0')
-      return `${y}-${m}-${day} ${h}:${min}`
-    }
     const formatted = data.map(row => ({
       ...row,
       trade_date: formatDate(row.trade_date),
-      snap_time: formatSnap(row.snap_time) || formatDate(row.trade_date),
+      snap_time: formatDate(row.snap_time) || formatDate(row.trade_date),
       avg_chg_pct: row.avg_chg_pct != null ? Number(row.avg_chg_pct).toFixed(2) : null,
       median_chg_pct: row.median_chg_pct != null ? Number(row.median_chg_pct).toFixed(2) : null,
     }))

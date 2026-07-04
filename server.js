@@ -352,16 +352,6 @@ app.get('/api/sentiment/after-hours', async (req, res) => {
        ) m ON t.snap_time = m.max_snap
        ORDER BY t.snap_time DESC`
     )
-    const formatSnap = (d) => {
-      if (!d) return null
-      const dt = new Date(d)
-      const y = dt.getFullYear()
-      const m = String(dt.getMonth() + 1).padStart(2, '0')
-      const day = String(dt.getDate()).padStart(2, '0')
-      const h = String(dt.getHours()).padStart(2, '0')
-      const min = String(dt.getMinutes()).padStart(2, '0')
-      return `${y}-${m}-${day} ${h}:${min}`
-    }
     const formatted = data.map(row => ({
       ...row,
       trade_date: formatDate(row.trade_date),
