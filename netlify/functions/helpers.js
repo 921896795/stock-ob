@@ -90,7 +90,12 @@ export async function handleStocks(table, req) {
     if (date) { conditions.push('t.target_date = ?'); params.push(date) }
     if (level) { conditions.push('t.opportunity_level = ?'); params.push(level) }
     if (prefix) { conditions.push('t.stock_code LIKE ?'); params.push(`${prefix}%`) }
-    if (sector) { conditions.push("FIND_IN_SET(?, REPLACE(t.sector_names, ';', ','))"); params.push(sector) }
+    if (sector) {
+      const sectors = sector.split(',').filter(Boolean)
+      const sectorConds = sectors.map(() => "FIND_IN_SET(?, REPLACE(t.sector_names, ';', ','))")
+      conditions.push('(' + sectorConds.join(' OR ') + ')')
+      sectors.forEach(s => params.push(s))
+    }
     if (sourceTable) {
       const tables = sourceTable.split(',').filter(Boolean)
       tables.forEach(t => {

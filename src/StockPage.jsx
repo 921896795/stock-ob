@@ -38,7 +38,7 @@ export default function StockPage({ apiPath, title }) {
   const [date, setDate] = useState(undefined)
   const [level, setLevel] = useState(undefined)
   const [prefix, setPrefix] = useState(undefined)
-  const [sector, setSector] = useState(undefined)
+  const [selectedSectors, setSelectedSectors] = useState([])
   const [sourceTable, setSourceTable] = useState(undefined)
   const [excludeStandalone, setExcludeStandalone] = useState(false)
   const [keyword, setKeyword] = useState('')
@@ -71,7 +71,7 @@ export default function StockPage({ apiPath, title }) {
       if (date) params.set('date', date)
       if (level) params.set('level', level)
       if (prefix) params.set('prefix', prefix)
-      if (sector) params.set('sector', sector)
+      if (selectedSectors.length > 0) params.set('sector', selectedSectors.join(','))
       if (sourceTable && sourceTable.length > 0) params.set('sourceTable', sourceTable.join(','))
       if (excludeStandalone) params.set('excludeStandalone', '1')
       if (keyword) params.set('keyword', keyword)
@@ -90,7 +90,7 @@ export default function StockPage({ apiPath, title }) {
     } finally {
       setLoading(false)
     }
-  }, [apiPath, date, level, prefix, sector, sourceTable, excludeStandalone, keyword])
+  }, [apiPath, date, level, prefix, selectedSectors, sourceTable, excludeStandalone, keyword])
 
   useEffect(() => {
     fetchData(1)
@@ -105,9 +105,11 @@ export default function StockPage({ apiPath, title }) {
       <div className="page-header">
         <p>
           共 {total.toLocaleString()} 条记录（按日期+股票代码去重）
-          {sector && (
+          {selectedSectors.length > 0 && (
             <span className="sector-active">
-              当前板块：<Tag closable onClose={() => setSector(undefined)} color="blue">{sector}</Tag>
+              当前板块：{selectedSectors.map(s => (
+                <Tag key={s} closable onClose={() => setSelectedSectors(prev => prev.filter(x => x !== s))} color="blue" style={{ margin: '0 4px 4px 0' }}>{s}</Tag>
+              ))}
             </span>
           )}
         </p>
@@ -154,20 +156,29 @@ export default function StockPage({ apiPath, title }) {
 
       <div className="main-layout">
         <div className="sector-panel">
-          <div className="sector-panel-header">板块列表</div>
+          <div className="sector-panel-header">
+            板块列表
+            {selectedSectors.length > 0 && (
+              <span style={{ float: 'right', fontSize: 12, color: '#1677ff', cursor: 'pointer', fontWeight: 'normal' }}
+                onClick={() => setSelectedSectors([])}>清除全部</span>
+            )}
+          </div>
           <div className="sector-search">
             <Input placeholder="搜索板块" size="small" allowClear
               value={sectorSearch} onChange={(e) => setSectorSearch(e.target.value)} />
           </div>
           <div className="sector-list">
-            {filteredSectors.map((s, i) => (
-              <div key={i}
-                className={`sector-item ${sector === s ? 'active' : ''}`}
-                onClick={() => setSector(sector === s ? undefined : s)}
-              >
-                {s}
-              </div>
-            ))}
+            {filteredSectors.map((s, i) => {
+              const isSelected = selectedSectors.includes(s)
+              return (
+                <div key={i}
+                  className={`sector-item ${isSelected ? 'active' : ''}`}
+                  onClick={() => setSelectedSectors(prev => isSelected ? prev.filter(x => x !== s) : [...prev, s])}
+                >
+                  {s}
+                </div>
+              )
+            })}
           </div>
         </div>
 

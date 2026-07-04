@@ -98,6 +98,8 @@ Object.entries(TABLES).forEach(([key, table]) => {
       const sourceTable = req.query.sourceTable || ''
       const keyword = req.query.keyword || ''
 
+      console.log('DEBUG - raw sector:', JSON.stringify(sector))
+
       const conditions = []
       const params = []
 
@@ -106,7 +108,13 @@ Object.entries(TABLES).forEach(([key, table]) => {
       if (date) { conditions.push('t.target_date = ?'); params.push(date) }
       if (level) { conditions.push('t.opportunity_level = ?'); params.push(level) }
       if (prefix) { conditions.push('t.stock_code LIKE ?'); params.push(`${prefix}%`) }
-      if (sector) { conditions.push("FIND_IN_SET(?, REPLACE(t.sector_names, ';', ','))"); params.push(sector) }
+      if (sector) {
+        const sectors = sector.split(',').filter(Boolean)
+        console.log('DEBUG - split sectors:', sectors)
+        const sectorConds = sectors.map(() => "FIND_IN_SET(?, REPLACE(t.sector_names, ';', ','))")
+        conditions.push('(' + sectorConds.join(' OR ') + ')')
+        sectors.forEach(s => params.push(s))
+      }
       if (sourceTable) {
         const tables = sourceTable.split(',').filter(Boolean)
         tables.forEach(t => {
