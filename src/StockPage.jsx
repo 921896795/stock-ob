@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react'
-import { Table, Select, Input, Tag, Checkbox, message } from 'antd'
+import { Table, Select, Input, Tag, Checkbox, message, Modal } from 'antd'
 
 const LEVEL_COLORS = {
   '一般恐慌': 'orange',
@@ -42,6 +42,12 @@ export default function StockPage({ apiPath, title }) {
   const [sourceTable, setSourceTable] = useState(undefined)
   const [excludeStandalone, setExcludeStandalone] = useState(false)
   const [keyword, setKeyword] = useState('')
+  const [collections, setCollections] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('stock_sector_collections') || '[]') }
+    catch { return [] }
+  })
+  const [collectionModalOpen, setCollectionModalOpen] = useState(false)
+  const [collectionName, setCollectionName] = useState('')
 
   useEffect(() => {
     fetch(`${apiPath}/dates`)
@@ -99,6 +105,37 @@ export default function StockPage({ apiPath, title }) {
   const filteredSectors = sectors.filter(s =>
     s.toLowerCase().includes(sectorSearch.toLowerCase())
   )
+
+  const saveCollection = () => {
+    if (!collectionName.trim()) {
+      message.warning('请输入集合名称')
+      return
+    }
+    if (selectedSectors.length === 0) {
+      message.warning('请先选择板块')
+      return
+    }
+    if (collections.some(c => c.name === collectionName.trim())) {
+      message.warning('集合名称已存在')
+      return
+    }
+    const next = [...collections, { name: collectionName.trim(), sectors: [...selectedSectors] }]
+    setCollections(next)
+    localStorage.setItem('stock_sector_collections', JSON.stringify(next))
+    setCollectionModalOpen(false)
+    setCollectionName('')
+    message.success('保存成功')
+  }
+
+  const deleteCollection = (name) => {
+    const next = collections.filter(c => c.name !== name)
+    setCollections(next)
+    localStorage.setItem('stock_sector_collections', JSON.stringify(next))
+  }
+
+  const applyCollection = (sectors) => {
+    setSelectedSectors([...sectors])
+  }
 
   return (
     <>
@@ -163,9 +200,26 @@ export default function StockPage({ apiPath, title }) {
                 onClick={() => setSelectedSectors([])}>清除全部</span>
             )}
           </div>
+          {collections.length > 0 && (
+            <div className="sector-collections">
+              {collections.map(c => (
+                <span key={c.name} className="sector-collection-tag" onClick={() => applyCollection(c.sectors)}>
+                  {c.name}
+                  <span className="sector-collection-del" onClick={(e) => { e.stopPropagation(); deleteCollection(c.name) }}>×</span>
+                </span>
+              ))}
+            </div>
+          )}
           <div className="sector-search">
-            <Input placeholder="搜索板块" size="small" allowClear
-              value={sectorSearch} onChange={(e) => setSectorSearch(e.target.value)} />
+            <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+              <Input placeholder="搜索板块" size="small" allowClear style={{ flex: 1 }}
+                value={sectorSearch} onChange={(e) => setSectorSearch(e.target.value)} />
+              <Tag
+                color="blue"
+                style={{ cursor: 'pointer', margin: 0, flexShrink: 0, lineHeight: '22px', padding: '0 6px' }}
+                onClick={() => setCollectionModalOpen(true)}
+              >+ 集合</Tag>
+            </div>
           </div>
           <div className="sector-list">
             {filteredSectors.map((s, i) => {
@@ -195,6 +249,26 @@ export default function StockPage({ apiPath, title }) {
           />
         </div>
       </div>
+
+      <Modal
+        title="保存板块集合"
+        open={collectionModalOpen}
+        onOk={saveCollection}
+        onCancel={() => { setCollectionModalOpen(false); setCollectionName('') }}
+        okText="保存"
+        cancelText="取消"
+      >
+        <Input
+          placeholder="输入集合名称，如：CRO+CXO概念"
+          value={collectionName}
+          onChange={(e) => setCollectionName(e.target.value)}
+          onPressEnter={saveCollection}
+          autoFocus
+        />
+        <div style={{ marginTop: 8, color: '#999', fontSize: 12 }}>
+          将保存当前选中的 {selectedSectors.length} 个板块
+        </div>
+      </Modal>
     </>
   )
 }

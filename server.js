@@ -98,8 +98,6 @@ Object.entries(TABLES).forEach(([key, table]) => {
       const sourceTable = req.query.sourceTable || ''
       const keyword = req.query.keyword || ''
 
-      console.log('DEBUG - raw sector:', JSON.stringify(sector))
-
       const conditions = []
       const params = []
 
@@ -110,7 +108,6 @@ Object.entries(TABLES).forEach(([key, table]) => {
       if (prefix) { conditions.push('t.stock_code LIKE ?'); params.push(`${prefix}%`) }
       if (sector) {
         const sectors = sector.split(',').filter(Boolean)
-        console.log('DEBUG - split sectors:', sectors)
         const sectorConds = sectors.map(() => "FIND_IN_SET(?, REPLACE(t.sector_names, ';', ','))")
         conditions.push('(' + sectorConds.join(' OR ') + ')')
         sectors.forEach(s => params.push(s))
