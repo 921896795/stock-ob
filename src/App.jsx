@@ -7,6 +7,7 @@ import FirstHighPage from './FirstHighPage'
 import SentimentPage from './SentimentPage'
 import SectorRankPage from './SectorRankPage'
 import LianbanPage from './LianbanPage'
+import HobPage from './HobPage'
 
 const TABS = [
   { key: 'huicai', label: '回踩和新高', apiPath: '/api/huicai' },
@@ -17,6 +18,7 @@ const TABS = [
   { key: 'afterhours', label: '盘后涨跌', component: 'afterhours' },
   { key: 'sectorrank', label: '板块排行', component: 'sectorrank' },
   { key: 'lianban', label: '连扳潜伏', component: 'lianban' },
+  { key: 'hob', label: '高开大阴', component: 'hob' },
 ]
 
 export default function App() {
@@ -29,6 +31,7 @@ export default function App() {
     if (t.component === 'afterhours') return <SentimentPage apiPath="/api/sentiment/after-hours" />
     if (t.component === 'sectorrank') return <SectorRankPage />
     if (t.component === 'lianban') return <LianbanPage />
+    if (t.component === 'hob') return <HobPage />
     return <StockPage apiPath={t.apiPath} />
   }
 

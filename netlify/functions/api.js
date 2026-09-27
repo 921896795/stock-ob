@@ -1,4 +1,4 @@
-import { handleDates, handleSectors, handleSourceTables, handleStocks, handleNewHighDates, handleNewHighStocks, handleFirstHighDates, handleFirstHighFirstDates, handleFirstHighStocks, handleSentimentData, handleSentimentAfterHours, handleSectorRankDates, handleSectorRankIndustries, handleSectorRankData, handleLianbanDates, handleLianbanStocks } from './helpers.js'
+import { handleDates, handleSectors, handleSourceTables, handleStocks, handleNewHighDates, handleNewHighStocks, handleFirstHighDates, handleFirstHighFirstDates, handleFirstHighStocks, handleSentimentData, handleSentimentAfterHours, handleSectorRankDates, handleSectorRankIndustries, handleSectorRankData, handleLianbanDates, handleLianbanStocks, handleHobDates, handleHobStocks } from './helpers.js'
 
 const TABLES = {
   huicai: 'aads_回踩和新高表',
@@ -8,8 +8,18 @@ const TABLES = {
 export default async (req) => {
   const url = new URL(req.url)
   const parts = url.pathname.split('/').filter(Boolean)
-  const tableKey = parts.find(p => TABLES[p] || p === 'newhigh' || p === 'firsthigh' || p === 'sentiment' || p === 'sector-rank' || p === 'lianban')
+  const tableKey = parts.find(p => TABLES[p] || p === 'newhigh' || p === 'firsthigh' || p === 'sentiment' || p === 'sector-rank' || p === 'lianban' || p === 'hob')
   const action = parts[parts.length - 1]
+
+  if (tableKey === 'hob') {
+    try {
+      if (action === 'dates') return await handleHobDates()
+      if (action === 'stocks') return await handleHobStocks(req)
+      return new Response(JSON.stringify({ error: 'Invalid action' }), { status: 400 })
+    } catch (err) {
+      return new Response(JSON.stringify({ error: err.message }), { status: 500 })
+    }
+  }
 
   if (tableKey === 'lianban') {
     try {
