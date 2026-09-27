@@ -249,3 +249,17 @@ body {
   color: #ff4d4f;
   flex-shrink: 0;
 }
+
+/* 连扳潜伏：最高连板数行标红 */
+.table-wrapper .ant-table-row.row-max-limit > td {
+  background: #fff1f0 !important;
+  color: #cf1322;
+  font-weight: 600;
+}
+
+/* 连扳潜伏：一字板行标黄 */
+.table-wrapper .ant-table-row.row-yizi > td {
+  background: #fffbe6 !important;
+  color: #d48806;
+  font-weight: 600;
+}

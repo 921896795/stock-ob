@@ -388,6 +388,71 @@ export async function handleSectorRankData(req) {
     return jsonResponse({ error: err.message }, 500)
   }
 }
+// ====== 连扳潜伏 ======
+
+const LIANBAN_TABLE = 'dwd_mkt_lb_signal_d'
+
+export async function handleLianbanDates() {
+  try {
+    const [rows] = await queryWithRetry(
+      `SELECT DISTINCT trade_date FROM \`${LIANBAN_TABLE}\` ORDER BY trade_date DESC`
+    )
+    return jsonResponse(rows.map(r => formatDate(r.trade_date)))
+  } catch (err) {
+    return jsonResponse({ error: err.message }, 500)
+  }
+}
+
+export async function handleLianbanStocks(req) {
+  try {
+    const url = new URL(req.url)
+    const page = Math.max(1, parseInt(url.searchParams.get('page')) || 1)
+    const pageSize = Math.min(200, Math.max(1, parseInt(url.searchParams.get('pageSize')) || 100))
+    const date = url.searchParams.get('date') || ''
+    const boardType = url.searchParams.get('boardType') || ''
+    const keyword = url.searchParams.get('keyword') || ''
+
+    const conditions = []
+    const params = []
+
+    if (date) { conditions.push('t.trade_date = ?'); params.push(date) }
+    if (boardType) { conditions.push('t.board_type = ?'); params.push(boardType) }
+    if (keyword) { conditions.push('(t.stock_code LIKE ? OR t.stock_name LIKE ?)'); params.push(`%${keyword}%`, `%${keyword}%`) }
+
+    const where = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : ''
+
+    const [countRows] = await queryWithRetry(
+      `SELECT COUNT(*) as total FROM \`${LIANBAN_TABLE}\` t ${where}`, params
+    )
+    const total = countRows[0].total
+
+    const offset = (page - 1) * pageSize
+    const [data] = await queryWithRetry(
+      `SELECT t.id, t.trade_date, t.stock_code, t.stock_name, t.board_type,
+              t.limit_up_days, t.limit_up_stat, t.change_pct,
+              t.first_seal_time, t.last_seal_time, t.seal_fund_amt,
+              t.float_mkt_cap_amt, t.total_mkt_cap_amt,
+              t.industry_sw, t.industry_zjh, t.concept_sectors, t.is_yizi
+       FROM \`${LIANBAN_TABLE}\` t
+       ${where}
+       ORDER BY t.trade_date DESC, t.limit_up_days DESC, t.stock_code ASC
+       LIMIT ? OFFSET ?`,
+      [...params, String(pageSize), String(offset)]
+    )
+
+    const formatted = data.map(row => ({
+      ...row,
+      trade_date: formatDate(row.trade_date),
+      first_seal_time: row.first_seal_time ? String(row.first_seal_time).slice(0, 8) : null,
+      last_seal_time: row.last_seal_time ? String(row.last_seal_time).slice(0, 8) : null,
+    }))
+
+    return jsonResponse({ total, page, pageSize, data: formatted })
+  } catch (err) {
+    return jsonResponse({ error: err.message }, 500)
+  }
+}
+
 export async function handleSentimentAfterHours() {
   try {
     const [data] = await queryWithRetry(

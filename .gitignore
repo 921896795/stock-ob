@@ -2,3 +2,7 @@ node_modules
 dist
 .env
 .vite
+.mimocode/
+__dream_query*.py
+_dream_query*.py
+vite*.log
