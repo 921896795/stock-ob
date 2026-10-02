@@ -516,6 +516,73 @@ export async function handleLianbanStocks(req) {
   }
 }
 
+// ====== 活跃炸板 ======
+
+const ZB_TABLE = 'dwd_mkt_zb_signal_d'
+
+export async function handleZbDates() {
+  try {
+    const [rows] = await queryWithRetry(
+      `SELECT DISTINCT trade_date FROM \`${ZB_TABLE}\` ORDER BY trade_date DESC`
+    )
+    return jsonResponse(rows.map(r => formatDate(r.trade_date)))
+  } catch (err) {
+    return jsonResponse({ error: err.message }, 500)
+  }
+}
+
+export async function handleZbStocks(req) {
+  try {
+    const url = new URL(req.url)
+    const page = Math.max(1, parseInt(url.searchParams.get('page')) || 1)
+    const pageSize = Math.min(200, Math.max(1, parseInt(url.searchParams.get('pageSize')) || 100))
+    const date = url.searchParams.get('date') || ''
+    const boardType = url.searchParams.get('boardType') || ''
+    const keyword = url.searchParams.get('keyword') || ''
+
+    const conditions = []
+    const params = []
+
+    if (date) { conditions.push('t.trade_date = ?'); params.push(date) }
+    if (boardType) { conditions.push('t.board_type = ?'); params.push(boardType) }
+    if (keyword) { conditions.push('(t.stock_code LIKE ? OR t.stock_name LIKE ?)'); params.push(`%${keyword}%`, `%${keyword}%`) }
+
+    const where = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : ''
+
+    const [countRows] = await queryWithRetry(
+      `SELECT COUNT(*) as total FROM \`${ZB_TABLE}\` t ${where}`, params
+    )
+    const total = countRows[0].total
+
+    const offset = (page - 1) * pageSize
+    const [data] = await queryWithRetry(
+      `SELECT t.id, t.trade_date, t.stock_code, t.stock_name, t.board_type,
+              t.limit_pct, t.last_price, t.limit_up_price, t.change_pct,
+              t.turnover_rate, t.turnover_amt, t.limit_up_stat, t.first_seal_time,
+              t.open_board_cnt, t.limit_up_cnt_20d,
+              t.float_mkt_cap_amt, t.total_mkt_cap_amt,
+              t.industry_sw, t.industry_zjh, t.concept_sectors
+       FROM \`${ZB_TABLE}\` t
+       ${where}
+       ORDER BY t.trade_date DESC, t.open_board_cnt DESC, t.stock_code ASC
+       LIMIT ? OFFSET ?`,
+      [...params, String(pageSize), String(offset)]
+    )
+
+    const formatted = data.map(row => ({
+      ...row,
+      trade_date: formatDate(row.trade_date),
+      change_pct: row.change_pct != null ? Number(row.change_pct) : null,
+      turnover_rate: row.turnover_rate != null ? Number(row.turnover_rate) : null,
+      limit_pct: row.limit_pct != null ? Number(row.limit_pct) : null,
+    }))
+
+    return jsonResponse({ total, page, pageSize, data: formatted })
+  } catch (err) {
+    return jsonResponse({ error: err.message }, 500)
+  }
+}
+
 export async function handleSentimentAfterHours() {
   try {
     const [data] = await queryWithRetry(

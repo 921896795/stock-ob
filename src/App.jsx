@@ -8,6 +8,7 @@ import SentimentPage from './SentimentPage'
 import SectorRankPage from './SectorRankPage'
 import LianbanPage from './LianbanPage'
 import HobPage from './HobPage'
+import ZbPage from './ZbPage'
 
 const TABS = [
   { key: 'huicai', label: '回踩和新高', apiPath: '/api/huicai' },
@@ -19,6 +20,7 @@ const TABS = [
   { key: 'sectorrank', label: '板块排行', component: 'sectorrank' },
   { key: 'lianban', label: '连扳潜伏', component: 'lianban' },
   { key: 'hob', label: '高开大阴', component: 'hob' },
+  { key: 'zb', label: '活跃炸板', component: 'zb' },
 ]
 
 export default function App() {
@@ -32,6 +34,7 @@ export default function App() {
     if (t.component === 'sectorrank') return <SectorRankPage />
     if (t.component === 'lianban') return <LianbanPage />
     if (t.component === 'hob') return <HobPage />
+    if (t.component === 'zb') return <ZbPage />
     return <StockPage apiPath={t.apiPath} />
   }
 
