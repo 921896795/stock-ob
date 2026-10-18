@@ -730,6 +730,7 @@ export async function handleProfitGapStocks(req) {
 // ====== 利润断层突破 ======
 
 const PROFIT_GAP_BREAK_TABLE = 'ads_sig_net_profit_gap_break_daily'
+const PROFIT_GAP_BREAK_COMBINED = '信号日比+历史比'
 
 export async function handleProfitGapBreakDates() {
   try {
@@ -756,7 +757,9 @@ export async function handleProfitGapBreakStocks(req) {
 
     if (date) { conditions.push('t.trade_date = ?'); params.push(date) }
     if (keyword) { conditions.push('(t.code LIKE ? OR t.name LIKE ?)'); params.push(`%${keyword}%`, `%${keyword}%`) }
-    if (compareSource) { conditions.push('t.compare_source = ?'); params.push(compareSource) }
+    if (compareSource === PROFIT_GAP_BREAK_COMBINED) {
+      conditions.push(`(t.trade_date, t.code) IN (SELECT trade_date, code FROM \`${PROFIT_GAP_BREAK_TABLE}\` GROUP BY trade_date, code HAVING COUNT(DISTINCT compare_source) >= 2)`)
+    } else if (compareSource) { conditions.push('t.compare_source = ?'); params.push(compareSource) }
 
     const where = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : ''
 
@@ -786,6 +789,89 @@ export async function handleProfitGapBreakStocks(req) {
     }))
 
     return jsonResponse({ total, page, pageSize, data: formatted })
+  } catch (err) {
+    return jsonResponse({ error: err.message }, 500)
+  }
+}
+
+// ====== 月线反转 ======
+
+const YXFZ_TABLE = 'ads_mkt_yxfz_signal_d'
+
+export async function handleYxfzDates() {
+  try {
+    const [rows] = await queryWithRetry(
+      `SELECT DISTINCT trade_date FROM \`${YXFZ_TABLE}\` ORDER BY trade_date DESC`
+    )
+    return jsonResponse(rows.map(r => formatDate(r.trade_date)))
+  } catch (err) {
+    return jsonResponse({ error: err.message }, 500)
+  }
+}
+
+export async function handleYxfzSources() {
+  try {
+    const [rows] = await queryWithRetry(
+      `SELECT source_name, COUNT(*) AS cnt FROM \`${YXFZ_TABLE}\` GROUP BY source_name ORDER BY cnt DESC`
+    )
+    return jsonResponse(rows.map(r => ({ name: r.source_name, count: Number(r.cnt) })))
+  } catch (err) {
+    return jsonResponse({ error: err.message }, 500)
+  }
+}
+
+export async function handleYxfzStocks(req) {
+  try {
+    const url = new URL(req.url)
+    const page = Math.max(1, parseInt(url.searchParams.get('page')) || 1)
+    const pageSize = Math.min(200, Math.max(1, parseInt(url.searchParams.get('pageSize')) || 100))
+    const date = url.searchParams.get('date') || ''
+    const keyword = url.searchParams.get('keyword') || ''
+    const sourceName = url.searchParams.get('sourceName') || ''
+
+    const conditions = []
+    const params = []
+
+    if (date) { conditions.push('t.trade_date = ?'); params.push(date) }
+    if (keyword) { conditions.push('(t.stock_code LIKE ? OR t.stock_name LIKE ?)'); params.push(`%${keyword}%`, `%${keyword}%`) }
+    if (sourceName) { conditions.push('t.source_name = ?'); params.push(sourceName) }
+
+    const where = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : ''
+
+    const [countRows] = await queryWithRetry(
+      `SELECT COUNT(*) as total FROM \`${YXFZ_TABLE}\` t ${where}`,
+      params
+    )
+    const total = countRows[0].total
+
+    const offset = (page - 1) * pageSize
+    const [data] = await queryWithRetry(
+      `SELECT t.id, t.trade_date, t.stock_code, t.stock_name, t.exchange, t.close_price,
+              t.rps50, t.rps120, t.fyx1, t.fyx2, t.fyx3, t.fyx4, t.fyx5, t.fyx6, t.fyx7,
+              t.yxfz, t.is_first_in_15d, t.first_signal_date, t.signal_type, t.source_name
+       FROM \`${YXFZ_TABLE}\` t
+       ${where}
+       ORDER BY t.trade_date DESC, t.stock_code ASC
+       LIMIT ? OFFSET ?`,
+      [...params, String(pageSize), String(offset)]
+    )
+
+    const formatted = data.map(row => {
+      const out = {
+        ...row,
+        trade_date: formatDate(row.trade_date),
+        first_signal_date: formatDate(row.first_signal_date),
+        close_price: row.close_price != null ? Number(row.close_price) : null,
+        rps50: row.rps50 != null ? Number(row.rps50) : null,
+        rps120: row.rps120 != null ? Number(row.rps120) : null,
+        yxfz: Number(row.yxfz) === 1,
+        is_first_in_15d: Number(row.is_first_in_15d) === 1,
+      }
+      for (let i = 1; i <= 7; i++) out[`fyx${i}`] = Number(row[`fyx${i}`]) === 1
+      return out
+    })
+
+    return jsonResponse({ data: formatted, total, page, pageSize })
   } catch (err) {
     return jsonResponse({ error: err.message }, 500)
   }

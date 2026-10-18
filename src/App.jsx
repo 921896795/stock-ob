@@ -14,6 +14,7 @@ import TwentyCmPage from './TwentyCmPage'
 import ProfitGapPage from './ProfitGapPage'
 import ProfitGapBreakPage from './ProfitGapBreakPage'
 import MidTermIndexPage from './MidTermIndexPage'
+import YxfzPage from './YxfzPage'
 
 const MODELS = [
   {
@@ -36,6 +37,7 @@ const MODELS = [
       { key: 'lower-shadow', label: '510', component: 'lower-shadow' },
       { key: 'profit-gap', label: '利润断层', component: 'profit-gap' },
       { key: 'profit-gap-break', label: '利润断层突破', component: 'profit-gap-break' },
+      { key: 'yxfz', label: '月线反转', component: 'yxfz' },
       { key: 'newhigh', label: '7天频繁新高（200+）', component: 'newhigh' },
       { key: 'firsthigh', label: '7天首次新高（200+）', component: 'firsthigh' },
     ],
@@ -65,6 +67,7 @@ export default function App() {
     if (t.component === 'profit-gap') return <ProfitGapPage />
     if (t.component === 'profit-gap-break') return <ProfitGapBreakPage />
     if (t.component === 'midterm-index') return <MidTermIndexPage />
+    if (t.component === 'yxfz') return <YxfzPage />
     return <StockPage apiPath={t.apiPath} excludeSoleSource={t.excludeSoleSource} />
   }
 

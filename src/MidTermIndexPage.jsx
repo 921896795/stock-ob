@@ -242,6 +242,20 @@ export default function MidTermIndexPage() {
 
   return (
     <>
+      <div className="rule-box">
+        <div className="rule-title">模型规则：</div>
+        <ol>
+          <li><code>买入</code>：本周收盘价 ≥ 最近 4 周最高收盘价</li>
+          <li><code>结束</code>：本周收盘价 ≤ 最近 4 周最低收盘价</li>
+        </ol>
+        <div className="rule-title">运行时间：</div>
+        <ol>
+          <li>每周六 <code>06:00 / 06:30</code>（crontab）</li>
+        </ol>
+        <div className="rule-title">数据库表：</div>
+        <div><code>dwd_mkt_midterm_index_signal_w</code></div>
+      </div>
+
       <div className="page-header">
         <p>中期指数信号（共 {indexes.length} 个指数，红色=买入信号，绿色=结束信号）</p>
       </div>

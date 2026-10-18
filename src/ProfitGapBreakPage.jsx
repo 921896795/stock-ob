@@ -23,7 +23,7 @@ const jumpRender = (v) => {
 
 const yesNo = (v) => (v ? '是' : '否')
 
-const COMPARE_SOURCES = ['信号日比', '历史比']
+const COMPARE_SOURCES = ['信号日比', '历史比', '信号日比+历史比']
 
 export default function ProfitGapBreakPage() {
   const [data, setData] = useState([])
