@@ -102,6 +102,7 @@ Object.entries(TABLES).forEach(([key, table]) => {
       const params = []
 
       const excludeStandalone = req.query.excludeStandalone === '1'
+      const excludeSoleSource = req.query.excludeSoleSource || ''
 
       if (date) { conditions.push('t.target_date = ?'); params.push(date) }
       if (level) { conditions.push('t.opportunity_level = ?'); params.push(level) }
@@ -122,6 +123,7 @@ Object.entries(TABLES).forEach(([key, table]) => {
           conditions.push("t.source_table LIKE '%、%'")
         }
       }
+      if (excludeSoleSource) { conditions.push('TRIM(t.source_table) <> ?'); params.push(excludeSoleSource) }
       if (keyword) { conditions.push('(t.stock_code LIKE ? OR t.stock_name LIKE ?)'); params.push(`%${keyword}%`, `%${keyword}%`) }
 
       const where = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : ''
@@ -679,6 +681,241 @@ app.get('/api/lower-shadow/stocks', async (req, res) => {
     }))
 
     res.json({ total, page, pageSize, data: formatted })
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// 20冰点活跃 API
+const TWENTY_CM_TABLE = 'dwd_sig_20cm_di'
+
+app.get('/api/20cm/dates', async (req, res) => {
+  try {
+    const [rows] = await pool.execute(
+      `SELECT DISTINCT trade_date FROM \`${TWENTY_CM_TABLE}\` ORDER BY trade_date DESC`
+    )
+    res.json(rows.map(r => formatDate(r.trade_date)))
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+app.get('/api/20cm/stocks', async (req, res) => {
+  try {
+    const page = Math.max(1, parseInt(req.query.page) || 1)
+    const pageSize = Math.min(200, Math.max(1, parseInt(req.query.pageSize) || 100))
+    const date = req.query.date || ''
+    const keyword = req.query.keyword || ''
+
+    const conditions = []
+    const params = []
+
+    if (date) { conditions.push('t.trade_date = ?'); params.push(date) }
+    if (keyword) { conditions.push('(t.stock_code LIKE ? OR t.stock_name LIKE ?)'); params.push(`%${keyword}%`, `%${keyword}%`) }
+
+    const where = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : ''
+
+    const [countRows] = await pool.execute(
+      `SELECT COUNT(*) as total FROM \`${TWENTY_CM_TABLE}\` t ${where}`, params
+    )
+    const total = countRows[0].total
+
+    const offset = (page - 1) * pageSize
+    const [data] = await pool.execute(
+      `SELECT t.id, t.trade_date, t.stock_code, t.stock_name
+       FROM \`${TWENTY_CM_TABLE}\` t
+       ${where}
+       ORDER BY t.trade_date DESC, t.stock_code ASC
+       LIMIT ? OFFSET ?`,
+      [...params, String(pageSize), String(offset)]
+    )
+
+    const formatted = data.map(row => ({
+      ...row,
+      trade_date: formatDate(row.trade_date),
+    }))
+
+    res.json({ total, page, pageSize, data: formatted })
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// 利润断层 API
+const PROFIT_GAP_TABLE = 'ads_sig_net_profit_gap_daily'
+
+app.get('/api/profit-gap/dates', async (req, res) => {
+  try {
+    const [rows] = await pool.execute(
+      `SELECT DISTINCT trade_date FROM \`${PROFIT_GAP_TABLE}\` ORDER BY trade_date DESC`
+    )
+    res.json(rows.map(r => formatDate(r.trade_date)))
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// 次数小表：仅出现 >= 2 次的股票，按次数降序
+app.get('/api/profit-gap/counts', async (req, res) => {
+  try {
+    const [rows] = await pool.execute(
+      `SELECT code, MAX(name) AS name, COUNT(*) AS cnt
+       FROM \`${PROFIT_GAP_TABLE}\`
+       GROUP BY code
+       HAVING COUNT(*) >= 2
+       ORDER BY cnt DESC, code ASC`
+    )
+    res.json(rows.map(r => ({ code: r.code, name: r.name, cnt: Number(r.cnt) })))
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// 明细表：按交易日倒序
+app.get('/api/profit-gap/stocks', async (req, res) => {
+  try {
+    const page = Math.max(1, parseInt(req.query.page) || 1)
+    const pageSize = Math.min(200, Math.max(1, parseInt(req.query.pageSize) || 100))
+    const date = req.query.date || ''
+    const keyword = req.query.keyword || ''
+
+    const conditions = []
+    const params = []
+
+    if (date) { conditions.push('t.trade_date = ?'); params.push(date) }
+    if (keyword) { conditions.push('(t.code LIKE ? OR t.name LIKE ?)'); params.push(`%${keyword}%`, `%${keyword}%`) }
+
+    const where = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : ''
+
+    const [countRows] = await pool.execute(
+      `SELECT COUNT(*) as total FROM \`${PROFIT_GAP_TABLE}\` t ${where}`, params
+    )
+    const total = countRows[0].total
+
+    const offset = (page - 1) * pageSize
+    const [data] = await pool.execute(
+      `SELECT t.id, t.trade_date, t.code, t.name, t.exchange,
+              t.has_today_announcement, t.has_prev_day_announcement,
+              t.open_price, t.prev_close, t.open_jump_pct
+       FROM \`${PROFIT_GAP_TABLE}\` t
+       ${where}
+       ORDER BY t.trade_date DESC, t.code ASC
+       LIMIT ? OFFSET ?`,
+      [...params, String(pageSize), String(offset)]
+    )
+
+    const formatted = data.map(row => ({
+      ...row,
+      trade_date: formatDate(row.trade_date),
+    }))
+
+    res.json({ total, page, pageSize, data: formatted })
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// 利润断层突破 API
+const PROFIT_GAP_BREAK_TABLE = 'ads_sig_net_profit_gap_break_daily'
+
+app.get('/api/profit-gap-break/dates', async (req, res) => {
+  try {
+    const [rows] = await pool.execute(
+      `SELECT DISTINCT trade_date FROM \`${PROFIT_GAP_BREAK_TABLE}\` ORDER BY trade_date DESC`
+    )
+    res.json(rows.map(r => formatDate(r.trade_date)))
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+app.get('/api/profit-gap-break/stocks', async (req, res) => {
+  try {
+    const page = Math.max(1, parseInt(req.query.page) || 1)
+    const pageSize = Math.min(200, Math.max(1, parseInt(req.query.pageSize) || 100))
+    const date = req.query.date || ''
+    const keyword = req.query.keyword || ''
+    const compareSource = req.query.compareSource || ''
+
+    const conditions = []
+    const params = []
+
+    if (date) { conditions.push('t.trade_date = ?'); params.push(date) }
+    if (keyword) { conditions.push('(t.code LIKE ? OR t.name LIKE ?)'); params.push(`%${keyword}%`, `%${keyword}%`) }
+    if (compareSource) { conditions.push('t.compare_source = ?'); params.push(compareSource) }
+
+    const where = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : ''
+
+    const [countRows] = await pool.execute(
+      `SELECT COUNT(*) as total FROM \`${PROFIT_GAP_BREAK_TABLE}\` t ${where}`, params,
+    )
+    const total = countRows[0].total
+
+    const offset = (page - 1) * pageSize
+    const [data] = await pool.execute(
+      `SELECT t.id, t.trade_date, t.code, t.secid, t.compare_source, t.name, t.exchange,
+              t.has_today_announcement, t.has_prev_day_announcement,
+              t.open_price, t.prev_close, t.open_jump_pct,
+              t.trade_date_high_price, t.history_high_price,
+              t.current_price, t.current_low_price, t.current_price_time,
+              t.exceed_amount
+       FROM \`${PROFIT_GAP_BREAK_TABLE}\` t
+       ${where}
+       ORDER BY t.current_price_time DESC, t.code ASC
+       LIMIT ? OFFSET ?`,
+      [...params, String(pageSize), String(offset)]
+    )
+
+    const formatted = data.map(row => ({
+      ...row,
+      trade_date: formatDate(row.trade_date),
+    }))
+
+    res.json({ total, page, pageSize, data: formatted })
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// 中期指数 API
+const MIDTERM_INDEX_TABLE = 'dwd_mkt_midterm_index_signal_w'
+
+app.get('/api/midterm-index/data', async (req, res) => {
+  try {
+    const weeks = Math.max(0, parseInt(req.query.weeks) || 0)
+
+    let where = ''
+    const params = []
+    if (weeks > 0) {
+      where = `WHERE week_date >= (
+        SELECT week_date FROM (
+          SELECT DISTINCT week_date FROM \`${MIDTERM_INDEX_TABLE}\`
+          ORDER BY week_date DESC LIMIT 1 OFFSET ?
+        ) t
+      )`
+      params.push(String(weeks - 1))
+    }
+
+    const [data] = await pool.execute(
+      `SELECT id, week_date, index_code, index_name, close_price,
+              hhv_4w, llv_4w, is_buy_signal, is_end_signal
+       FROM \`${MIDTERM_INDEX_TABLE}\`
+       ${where}
+       ORDER BY week_date DESC, index_code ASC`,
+      params
+    )
+
+    const formatted = data.map(row => ({
+      ...row,
+      week_date: formatDate(row.week_date),
+      close_price: row.close_price != null ? Number(row.close_price) : null,
+      hhv_4w: row.hhv_4w != null ? Number(row.hhv_4w) : null,
+      llv_4w: row.llv_4w != null ? Number(row.llv_4w) : null,
+      is_buy_signal: Number(row.is_buy_signal) === 1,
+      is_end_signal: Number(row.is_end_signal) === 1,
+    }))
+
+    res.json({ data: formatted })
   } catch (err) {
     res.status(500).json({ error: err.message })
   }

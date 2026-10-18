@@ -1,4 +1,4 @@
-import { handleDates, handleSectors, handleSourceTables, handleStocks, handleNewHighDates, handleNewHighStocks, handleFirstHighDates, handleFirstHighFirstDates, handleFirstHighStocks, handleSentimentData, handleSentimentAfterHours, handleSectorRankDates, handleSectorRankIndustries, handleSectorRankData, handleLianbanDates, handleLianbanStocks, handleHobDates, handleHobStocks, handleZbDates, handleZbStocks, handleLowerShadowDates, handleLowerShadowStocks } from './helpers.js'
+import { handleDates, handleSectors, handleSourceTables, handleStocks, handleNewHighDates, handleNewHighStocks, handleFirstHighDates, handleFirstHighFirstDates, handleFirstHighStocks, handleSentimentData, handleSentimentAfterHours, handleSectorRankDates, handleSectorRankIndustries, handleSectorRankData, handleLianbanDates, handleLianbanStocks, handleHobDates, handleHobStocks, handleZbDates, handleZbStocks, handleLowerShadowDates, handleLowerShadowStocks, handleTwentyCmDates, handleTwentyCmStocks, handleProfitGapDates, handleProfitGapCounts, handleProfitGapStocks, handleProfitGapBreakDates, handleProfitGapBreakStocks, handleMidTermIndexData } from './helpers.js'
 
 const TABLES = {
   huicai: 'aads_回踩和新高表',
@@ -8,7 +8,7 @@ const TABLES = {
 export default async (req) => {
   const url = new URL(req.url)
   const parts = url.pathname.split('/').filter(Boolean)
-  const tableKey = parts.find(p => TABLES[p] || p === 'newhigh' || p === 'firsthigh' || p === 'sentiment' || p === 'sector-rank' || p === 'lianban' || p === 'hob' || p === 'zb' || p === 'lower-shadow')
+  const tableKey = parts.find(p => TABLES[p] || p === 'newhigh' || p === 'firsthigh' || p === 'sentiment' || p === 'sector-rank' || p === 'lianban' || p === 'hob' || p === 'zb' || p === 'lower-shadow' || p === '20cm' || p === 'profit-gap' || p === 'profit-gap-break' || p === 'midterm-index')
   const action = parts[parts.length - 1]
 
   if (tableKey === 'hob') {
@@ -35,6 +35,46 @@ export default async (req) => {
     try {
       if (action === 'dates') return await handleLowerShadowDates()
       if (action === 'stocks') return await handleLowerShadowStocks(req)
+      return new Response(JSON.stringify({ error: 'Invalid action' }), { status: 400 })
+    } catch (err) {
+      return new Response(JSON.stringify({ error: err.message }), { status: 500 })
+    }
+  }
+
+  if (tableKey === 'profit-gap') {
+    try {
+      if (action === 'dates') return await handleProfitGapDates()
+      if (action === 'counts') return await handleProfitGapCounts()
+      if (action === 'stocks') return await handleProfitGapStocks(req)
+      return new Response(JSON.stringify({ error: 'Invalid action' }), { status: 400 })
+    } catch (err) {
+      return new Response(JSON.stringify({ error: err.message }), { status: 500 })
+    }
+  }
+
+  if (tableKey === 'profit-gap-break') {
+    try {
+      if (action === 'dates') return await handleProfitGapBreakDates()
+      if (action === 'stocks') return await handleProfitGapBreakStocks(req)
+      return new Response(JSON.stringify({ error: 'Invalid action' }), { status: 400 })
+    } catch (err) {
+      return new Response(JSON.stringify({ error: err.message }), { status: 500 })
+    }
+  }
+
+  if (tableKey === 'midterm-index') {
+    try {
+      if (action === 'data') return await handleMidTermIndexData(req)
+      return new Response(JSON.stringify({ error: 'Invalid action' }), { status: 400 })
+    } catch (err) {
+      return new Response(JSON.stringify({ error: err.message }), { status: 500 })
+    }
+  }
+
+  if (tableKey === '20cm') {
+    try {
+      if (action === 'dates') return await handleTwentyCmDates()
+      if (action === 'stocks') return await handleTwentyCmStocks(req)
       return new Response(JSON.stringify({ error: 'Invalid action' }), { status: 400 })
     } catch (err) {
       return new Response(JSON.stringify({ error: err.message }), { status: 500 })
