@@ -9,6 +9,7 @@ export default function HobPage() {
   const [dates, setDates] = useState([])
   const [date, setDate] = useState(undefined)
   const [keyword, setKeyword] = useState('')
+  const [phase, setPhase] = useState('after_close')
 
   useEffect(() => {
     fetch('/api/hob/dates')
@@ -23,6 +24,7 @@ export default function HobPage() {
       const params = new URLSearchParams({ page: p, pageSize: 100 })
       if (date) params.set('date', date)
       if (keyword) params.set('keyword', keyword)
+      if (phase && phase !== 'all') params.set('phase', phase)
 
       const res = await fetch(`/api/hob/stocks?${params}`)
       const json = await res.json()
@@ -38,13 +40,14 @@ export default function HobPage() {
     } finally {
       setLoading(false)
     }
-  }, [date, keyword])
+  }, [date, keyword, phase])
 
   useEffect(() => {
     fetchData(1)
   }, [fetchData])
 
   const columns = [
+    { title: '运行时间', dataIndex: 'run_time', key: 'run_time', width: 180 },
     {
       title: '交易日', dataIndex: 'trade_date', key: 'trade_date', width: 120, sorter: true,
       onCell: (record) => {
@@ -76,11 +79,36 @@ export default function HobPage() {
 
   return (
     <>
+      <div className="rule-box">
+        <div className="rule-title">模型规则：</div>
+        <ol>
+          <li>高开：开盘价相对前收盘价涨幅 &gt; <code>7%</code></li>
+          <li>大阴：当前价（盘中）/ 收盘价（盘后）跌破开盘价</li>
+        </ol>
+        <div className="rule-title">运行时间：</div>
+        <ol>
+          <li><code>11:35</code></li>
+          <li><code>14:10</code></li>
+          <li><code>16:10</code></li>
+        </ol>
+        <div className="rule-title">原表：</div>
+        <div><code>dwd_mkt_hob_signal_d</code></div>
+      </div>
+
       <div className="page-header">
         <p>共 {total.toLocaleString()} 条记录</p>
       </div>
 
       <div className="filter-bar">
+        <Select
+          style={{ width: 140 }}
+          value={phase} onChange={(v) => setPhase(v)}
+          options={[
+            { label: '盘后', value: 'after_close' },
+            { label: '盘中', value: 'intraday' },
+            { label: '全部', value: 'all' },
+          ]}
+        />
         <Select
           allowClear placeholder="交易日" style={{ width: 160 }}
           value={date} onChange={(v) => setDate(v)}
@@ -102,7 +130,7 @@ export default function HobPage() {
             showSizeChanger: false,
             onChange: (p) => fetchData(p),
           }}
-          scroll={{ x: 1500 }} size="middle"
+          scroll={{ x: 1680 }} size="middle"
         />
       </div>
     </>
