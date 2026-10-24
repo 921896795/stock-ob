@@ -7,15 +7,6 @@ const BOARD_TYPE_OPTIONS = [
   { label: '科创板 (kcb)', value: 'kcb' },
 ]
 
-// 首次封板时间与最后封板时间都在 09:35 之前
-const EARLY_SEAL_TIME = '09:35:00'
-const isEarlySeal = (record) => {
-  const first = record.first_seal_time
-  const last = record.last_seal_time
-  if (!first || !last) return false
-  return first < EARLY_SEAL_TIME && last < EARLY_SEAL_TIME
-}
-
 export default function LianbanPage() {
   const [data, setData] = useState([])
   const [total, setTotal] = useState(0)
@@ -54,11 +45,7 @@ export default function LianbanPage() {
       },
     },
     { title: '股票代码', dataIndex: 'stock_code', key: 'stock_code', width: 120, sorter: true },
-    { title: '股票名称', dataIndex: 'stock_name', key: 'stock_name', width: 120,
-      render: (v, record) => isEarlySeal(record)
-        ? <span style={{ color: '#d4b106', fontWeight: 600 }}>{v}</span>
-        : v,
-    },
+    { title: '股票名称', dataIndex: 'stock_name', key: 'stock_name', width: 120 },
     {
       title: '板块类型', dataIndex: 'board_type', key: 'board_type', width: 120,
       render: (v) => <Tag color="blue">{v || '-'}</Tag>,

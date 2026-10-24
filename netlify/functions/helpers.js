@@ -82,7 +82,6 @@ export async function handleStocks(table, req) {
     const sector = url.searchParams.get('sector') || ''
     const sourceTable = url.searchParams.get('sourceTable') || ''
     const excludeStandalone = url.searchParams.get('excludeStandalone') === '1'
-    const excludeSoleSource = url.searchParams.get('excludeSoleSource') || ''
     const keyword = url.searchParams.get('keyword') || ''
 
     const conditions = []
@@ -107,7 +106,6 @@ export async function handleStocks(table, req) {
         conditions.push("t.source_table LIKE '%、%'")
       }
     }
-    if (excludeSoleSource) { conditions.push('TRIM(t.source_table) <> ?'); params.push(excludeSoleSource) }
     if (keyword) { conditions.push('(t.stock_code LIKE ? OR t.stock_name LIKE ?)'); params.push(`%${keyword}%`, `%${keyword}%`) }
 
     const where = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : ''
@@ -412,14 +410,12 @@ export async function handleHobStocks(req) {
     const pageSize = Math.min(200, Math.max(1, parseInt(url.searchParams.get('pageSize')) || 100))
     const date = url.searchParams.get('date') || ''
     const keyword = url.searchParams.get('keyword') || ''
-    const phase = url.searchParams.get('phase') || 'after_close'
 
     const conditions = []
     const params = []
 
     if (date) { conditions.push('t.trade_date = ?'); params.push(date) }
     if (keyword) { conditions.push('(t.stock_code LIKE ? OR t.stock_name LIKE ?)'); params.push(`%${keyword}%`, `%${keyword}%`) }
-    if (phase && phase !== 'all') { conditions.push('t.phase = ?'); params.push(phase) }
 
     const where = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : ''
 
@@ -430,13 +426,13 @@ export async function handleHobStocks(req) {
 
     const offset = (page - 1) * pageSize
     const [data] = await queryWithRetry(
-      `SELECT t.id, t.trade_date, t.run_time, t.stock_code, t.stock_name,
+      `SELECT t.id, t.trade_date, t.stock_code, t.stock_name,
               t.open_pnl_pct, t.change_pct, t.turnover_rate,
               t.float_mkt_cap_amt, t.total_mkt_cap_amt,
               t.industry_sw, t.industry_zjh, t.concept_sectors
        FROM \`${HOB_TABLE}\` t
        ${where}
-       ORDER BY t.run_time DESC, t.open_pnl_pct DESC, t.stock_code ASC
+       ORDER BY t.trade_date DESC, t.open_pnl_pct DESC, t.stock_code ASC
        LIMIT ? OFFSET ?`,
       [...params, String(pageSize), String(offset)]
     )
@@ -444,7 +440,6 @@ export async function handleHobStocks(req) {
     const formatted = data.map(row => ({
       ...row,
       trade_date: formatDate(row.trade_date),
-      run_time: formatDateTime(row.run_time),
       open_pnl_pct: row.open_pnl_pct != null ? Number(row.open_pnl_pct) : null,
       change_pct: row.change_pct != null ? Number(row.change_pct) : null,
       turnover_rate: row.turnover_rate != null ? Number(row.turnover_rate) : null,
@@ -646,441 +641,6 @@ export async function handleLowerShadowStocks(req) {
       change_pct: row.change_pct != null ? Number(row.change_pct) : null,
       break_ma5_pct: row.break_ma5_pct != null ? Number(row.break_ma5_pct) : null,
       break_ma10_pct: row.break_ma10_pct != null ? Number(row.break_ma10_pct) : null,
-    }))
-
-    return jsonResponse({ total, page, pageSize, data: formatted })
-  } catch (err) {
-    return jsonResponse({ error: err.message }, 500)
-  }
-}
-
-// ====== 利润断层 ======
-
-const PROFIT_GAP_TABLE = 'ads_sig_net_profit_gap_daily'
-
-export async function handleProfitGapDates() {
-  try {
-    const [rows] = await queryWithRetry(
-      `SELECT DISTINCT trade_date FROM \`${PROFIT_GAP_TABLE}\` ORDER BY trade_date DESC`
-    )
-    return jsonResponse(rows.map(r => formatDate(r.trade_date)))
-  } catch (err) {
-    return jsonResponse({ error: err.message }, 500)
-  }
-}
-
-// 次数小表：仅出现 >= 2 次的股票，按次数降序
-export async function handleProfitGapCounts() {
-  try {
-    const [rows] = await queryWithRetry(
-      `SELECT code, MAX(name) AS name, COUNT(*) AS cnt
-       FROM \`${PROFIT_GAP_TABLE}\`
-       GROUP BY code
-       HAVING COUNT(*) >= 2
-       ORDER BY cnt DESC, code ASC`
-    )
-    return jsonResponse(rows.map(r => ({ code: r.code, name: r.name, cnt: Number(r.cnt) })))
-  } catch (err) {
-    return jsonResponse({ error: err.message }, 500)
-  }
-}
-
-// 明细表：按交易日倒序
-export async function handleProfitGapStocks(req) {
-  try {
-    const url = new URL(req.url)
-    const page = Math.max(1, parseInt(url.searchParams.get('page')) || 1)
-    const pageSize = Math.min(200, Math.max(1, parseInt(url.searchParams.get('pageSize')) || 100))
-    const date = url.searchParams.get('date') || ''
-    const keyword = url.searchParams.get('keyword') || ''
-
-    const conditions = []
-    const params = []
-
-    if (date) { conditions.push('t.trade_date = ?'); params.push(date) }
-    if (keyword) { conditions.push('(t.code LIKE ? OR t.name LIKE ?)'); params.push(`%${keyword}%`, `%${keyword}%`) }
-
-    const where = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : ''
-
-    const [countRows] = await queryWithRetry(
-      `SELECT COUNT(*) as total FROM \`${PROFIT_GAP_TABLE}\` t ${where}`, params
-    )
-    const total = countRows[0].total
-
-    const offset = (page - 1) * pageSize
-    const [data] = await queryWithRetry(
-      `SELECT t.id, t.trade_date, t.code, t.name, t.exchange,
-              t.has_today_announcement, t.has_prev_day_announcement,
-              t.open_price, t.prev_close, t.open_jump_pct
-       FROM \`${PROFIT_GAP_TABLE}\` t
-       ${where}
-       ORDER BY t.trade_date DESC, t.code ASC
-       LIMIT ? OFFSET ?`,
-      [...params, String(pageSize), String(offset)]
-    )
-
-    const formatted = data.map(row => ({
-      ...row,
-      trade_date: formatDate(row.trade_date),
-    }))
-
-    return jsonResponse({ total, page, pageSize, data: formatted })
-  } catch (err) {
-    return jsonResponse({ error: err.message }, 500)
-  }
-}
-
-// ====== 利润断层突破 ======
-
-const PROFIT_GAP_BREAK_TABLE = 'ads_sig_net_profit_gap_break_daily'
-const PROFIT_GAP_BREAK_COMBINED = '信号日比+历史比'
-
-export async function handleProfitGapBreakDates() {
-  try {
-    const [rows] = await queryWithRetry(
-      `SELECT DISTINCT trade_date FROM \`${PROFIT_GAP_BREAK_TABLE}\` ORDER BY trade_date DESC`
-    )
-    return jsonResponse(rows.map(r => formatDate(r.trade_date)))
-  } catch (err) {
-    return jsonResponse({ error: err.message }, 500)
-  }
-}
-
-export async function handleProfitGapBreakStocks(req) {
-  try {
-    const url = new URL(req.url)
-    const page = Math.max(1, parseInt(url.searchParams.get('page')) || 1)
-    const pageSize = Math.min(200, Math.max(1, parseInt(url.searchParams.get('pageSize')) || 100))
-    const date = url.searchParams.get('date') || ''
-    const keyword = url.searchParams.get('keyword') || ''
-    const compareSource = url.searchParams.get('compareSource') || ''
-
-    const conditions = []
-    const params = []
-
-    if (date) { conditions.push('t.trade_date = ?'); params.push(date) }
-    if (keyword) { conditions.push('(t.code LIKE ? OR t.name LIKE ?)'); params.push(`%${keyword}%`, `%${keyword}%`) }
-    if (compareSource === PROFIT_GAP_BREAK_COMBINED) {
-      conditions.push('t.compare_source IN (?, ?)')
-      params.push('信号日比', '历史比')
-    } else if (compareSource) { conditions.push('t.compare_source = ?'); params.push(compareSource) }
-
-    const where = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : ''
-
-    const [countRows] = await queryWithRetry(
-      `SELECT COUNT(*) as total FROM \`${PROFIT_GAP_BREAK_TABLE}\` t ${where}`, params
-    )
-    const total = countRows[0].total
-
-    const offset = (page - 1) * pageSize
-    const [data] = await queryWithRetry(
-      `SELECT t.id, t.trade_date, t.code, t.secid, t.compare_source, t.name, t.exchange,
-              t.has_today_announcement, t.has_prev_day_announcement,
-              t.open_price, t.prev_close, t.open_jump_pct,
-              t.trade_date_high_price, t.history_high_price,
-              t.current_price, t.current_low_price, t.current_price_time,
-              t.exceed_amount
-       FROM \`${PROFIT_GAP_BREAK_TABLE}\` t
-       ${where}
-       ORDER BY t.current_price_time DESC, t.code ASC
-       LIMIT ? OFFSET ?`,
-      [...params, String(pageSize), String(offset)]
-    )
-
-    const formatted = data.map(row => ({
-      ...row,
-      trade_date: formatDate(row.trade_date),
-    }))
-
-    return jsonResponse({ total, page, pageSize, data: formatted })
-  } catch (err) {
-    return jsonResponse({ error: err.message }, 500)
-  }
-}
-
-// ====== 月线反转 ======
-
-const YXFZ_TABLE = 'ads_mkt_yxfz_signal_d'
-
-export async function handleYxfzDates() {
-  try {
-    const [rows] = await queryWithRetry(
-      `SELECT DISTINCT trade_date FROM \`${YXFZ_TABLE}\` ORDER BY trade_date DESC`
-    )
-    return jsonResponse(rows.map(r => formatDate(r.trade_date)))
-  } catch (err) {
-    return jsonResponse({ error: err.message }, 500)
-  }
-}
-
-export async function handleYxfzSources() {
-  try {
-    const [rows] = await queryWithRetry(
-      `SELECT source_name, COUNT(*) AS cnt FROM \`${YXFZ_TABLE}\` GROUP BY source_name ORDER BY cnt DESC`
-    )
-    return jsonResponse(rows.map(r => ({ name: r.source_name, count: Number(r.cnt) })))
-  } catch (err) {
-    return jsonResponse({ error: err.message }, 500)
-  }
-}
-
-export async function handleYxfzStocks(req) {
-  try {
-    const url = new URL(req.url)
-    const page = Math.max(1, parseInt(url.searchParams.get('page')) || 1)
-    const pageSize = Math.min(200, Math.max(1, parseInt(url.searchParams.get('pageSize')) || 100))
-    const date = url.searchParams.get('date') || ''
-    const keyword = url.searchParams.get('keyword') || ''
-    const sourceName = url.searchParams.get('sourceName') || ''
-
-    const conditions = []
-    const params = []
-
-    if (date) { conditions.push('t.trade_date = ?'); params.push(date) }
-    if (keyword) { conditions.push('(t.stock_code LIKE ? OR t.stock_name LIKE ?)'); params.push(`%${keyword}%`, `%${keyword}%`) }
-    if (sourceName) { conditions.push('t.source_name = ?'); params.push(sourceName) }
-
-    const where = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : ''
-
-    const [countRows] = await queryWithRetry(
-      `SELECT COUNT(*) as total FROM \`${YXFZ_TABLE}\` t ${where}`,
-      params
-    )
-    const total = countRows[0].total
-
-    const offset = (page - 1) * pageSize
-    const [data] = await queryWithRetry(
-      `SELECT t.id, t.trade_date, t.stock_code, t.stock_name, t.exchange, t.close_price,
-              t.rps50, t.rps120, t.fyx1, t.fyx2, t.fyx3, t.fyx4, t.fyx5, t.fyx6, t.fyx7,
-              t.yxfz, t.is_first_in_15d, t.first_signal_date, t.signal_type, t.source_name
-       FROM \`${YXFZ_TABLE}\` t
-       ${where}
-       ORDER BY t.trade_date DESC, t.stock_code ASC
-       LIMIT ? OFFSET ?`,
-      [...params, String(pageSize), String(offset)]
-    )
-
-    const formatted = data.map(row => {
-      const out = {
-        ...row,
-        trade_date: formatDate(row.trade_date),
-        first_signal_date: formatDate(row.first_signal_date),
-        close_price: row.close_price != null ? Number(row.close_price) : null,
-        rps50: row.rps50 != null ? Number(row.rps50) : null,
-        rps120: row.rps120 != null ? Number(row.rps120) : null,
-        yxfz: Number(row.yxfz) === 1,
-        is_first_in_15d: Number(row.is_first_in_15d) === 1,
-      }
-      for (let i = 1; i <= 7; i++) out[`fyx${i}`] = Number(row[`fyx${i}`]) === 1
-      return out
-    })
-
-    return jsonResponse({ data: formatted, total, page, pageSize })
-  } catch (err) {
-    return jsonResponse({ error: err.message }, 500)
-  }
-}
-
-// ====== 一字 ======
-
-const ONE_WORD_BOARD_TABLE = 'dwd_mkt_one_word_board_d'
-
-export async function handleOneWordBoardDates() {
-  try {
-    const [rows] = await queryWithRetry(
-      `SELECT DISTINCT trade_date FROM \`${ONE_WORD_BOARD_TABLE}\` ORDER BY trade_date DESC`
-    )
-    return jsonResponse(rows.map(r => formatDate(r.trade_date)))
-  } catch (err) {
-    return jsonResponse({ error: err.message }, 500)
-  }
-}
-
-export async function handleOneWordBoardStocks(req) {
-  try {
-    const url = new URL(req.url)
-    const page = Math.max(1, parseInt(url.searchParams.get('page')) || 1)
-    const pageSize = Math.min(200, Math.max(1, parseInt(url.searchParams.get('pageSize')) || 100))
-    const date = url.searchParams.get('date') || ''
-    const boardType = url.searchParams.get('boardType') || ''
-    const keyword = url.searchParams.get('keyword') || ''
-
-    const conditions = []
-    const params = []
-
-    if (date) { conditions.push('t.trade_date = ?'); params.push(date) }
-    if (boardType) { conditions.push('t.board_type = ?'); params.push(boardType) }
-    if (keyword) { conditions.push('(t.stock_code LIKE ? OR t.stock_name LIKE ?)'); params.push(`%${keyword}%`, `%${keyword}%`) }
-
-    const where = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : ''
-
-    const [countRows] = await queryWithRetry(
-      `SELECT COUNT(*) as total FROM \`${ONE_WORD_BOARD_TABLE}\` t ${where}`,
-      params
-    )
-    const total = countRows[0].total
-
-    const offset = (page - 1) * pageSize
-    const [data] = await queryWithRetry(
-      `SELECT t.id, t.trade_date, t.stock_code, t.stock_name, t.exchange, t.board_type,
-              t.limit_pct, t.industry_name, t.prev_close_price, t.open_price, t.high_price,
-              t.low_price, t.close_price, t.limit_up_price, t.change_pct,
-              t.limit_up_days, t.limit_up_stat, t.first_seal_time, t.last_seal_time,
-              t.break_cnt, t.trade_amt, t.turnover_rate, t.seal_fund_amt,
-              t.float_mkt_cap_amt, t.total_mkt_cap_amt
-       FROM \`${ONE_WORD_BOARD_TABLE}\` t
-       ${where}
-       ORDER BY t.trade_date DESC, t.limit_up_days DESC, t.stock_code ASC
-       LIMIT ? OFFSET ?`,
-      [...params, String(pageSize), String(offset)]
-    )
-
-    const formatted = data.map(row => ({
-      ...row,
-      trade_date: formatDate(row.trade_date),
-      first_seal_time: row.first_seal_time ? String(row.first_seal_time).slice(0, 8) : null,
-      last_seal_time: row.last_seal_time ? String(row.last_seal_time).slice(0, 8) : null,
-      limit_pct: row.limit_pct != null ? Number(row.limit_pct) : null,
-      prev_close_price: row.prev_close_price != null ? Number(row.prev_close_price) : null,
-      open_price: row.open_price != null ? Number(row.open_price) : null,
-      high_price: row.high_price != null ? Number(row.high_price) : null,
-      low_price: row.low_price != null ? Number(row.low_price) : null,
-      close_price: row.close_price != null ? Number(row.close_price) : null,
-      limit_up_price: row.limit_up_price != null ? Number(row.limit_up_price) : null,
-      change_pct: row.change_pct != null ? Number(row.change_pct) : null,
-      turnover_rate: row.turnover_rate != null ? Number(row.turnover_rate) : null,
-    }))
-
-    return jsonResponse({ total, page, pageSize, data: formatted })
-  } catch (err) {
-    return jsonResponse({ error: err.message }, 500)
-  }
-}
-
-// ====== 中期指数 ======
-
-const MIDTERM_INDEX_TABLE = 'dwd_mkt_midterm_index_signal_w'
-
-export async function handleMidTermIndexData(req) {
-  try {
-    const url = new URL(req.url)
-    const weeks = Math.max(0, parseInt(url.searchParams.get('weeks')) || 0)
-
-    let where = ''
-    const params = []
-    if (weeks > 0) {
-      where = `WHERE week_date >= (
-        SELECT week_date FROM (
-          SELECT DISTINCT week_date FROM \`${MIDTERM_INDEX_TABLE}\`
-          ORDER BY week_date DESC LIMIT 1 OFFSET ?
-        ) t
-      )`
-      params.push(String(weeks - 1))
-    }
-
-    const [data] = await queryWithRetry(
-      `SELECT id, week_date, index_code, index_name, close_price,
-              hhv_4w, llv_4w, is_buy_signal, is_end_signal
-       FROM \`${MIDTERM_INDEX_TABLE}\`
-       ${where}
-       ORDER BY week_date DESC, index_code ASC`,
-      params
-    )
-
-    const formatted = data.map(row => ({
-      ...row,
-      week_date: formatDate(row.week_date),
-      close_price: row.close_price != null ? Number(row.close_price) : null,
-      hhv_4w: row.hhv_4w != null ? Number(row.hhv_4w) : null,
-      llv_4w: row.llv_4w != null ? Number(row.llv_4w) : null,
-      is_buy_signal: Number(row.is_buy_signal) === 1,
-      is_end_signal: Number(row.is_end_signal) === 1,
-    }))
-
-    return jsonResponse({ data: formatted })
-  } catch (err) {
-    return jsonResponse({ error: err.message }, 500)
-  }
-}
-
-// ====== 周末投票 ======
-
-const WEEKEND_VOTE_TABLE = 'ads_mkt_weekend_vote_d'
-
-export async function handleWeekendVoteData() {
-  try {
-    const [data] = await queryWithRetry(
-      `SELECT vote_date, bull_pct, bear_pct, flat_pct,
-              sz_comp_index, long_short_diff, vote_count
-       FROM \`${WEEKEND_VOTE_TABLE}\`
-       ORDER BY vote_date DESC`
-    )
-
-    const formatted = data.map(row => ({
-      vote_date: formatDate(row.vote_date),
-      bull_pct: row.bull_pct != null ? Number(row.bull_pct) : null,
-      bear_pct: row.bear_pct != null ? Number(row.bear_pct) : null,
-      flat_pct: row.flat_pct != null ? Number(row.flat_pct) : null,
-      sz_comp_index: row.sz_comp_index != null ? Number(row.sz_comp_index) : null,
-      long_short_diff: row.long_short_diff != null ? Number(row.long_short_diff) : null,
-      vote_count: row.vote_count != null ? Number(row.vote_count) : null,
-    }))
-
-    return jsonResponse(formatted)
-  } catch (err) {
-    return jsonResponse({ error: err.message }, 500)
-  }
-}
-
-// ====== 20冰点活跃 ======
-
-const TWENTY_CM_TABLE = 'dwd_sig_20cm_di'
-
-export async function handleTwentyCmDates() {
-  try {
-    const [rows] = await queryWithRetry(
-      `SELECT DISTINCT trade_date FROM \`${TWENTY_CM_TABLE}\` ORDER BY trade_date DESC`
-    )
-    return jsonResponse(rows.map(r => formatDate(r.trade_date)))
-  } catch (err) {
-    return jsonResponse({ error: err.message }, 500)
-  }
-}
-
-export async function handleTwentyCmStocks(req) {
-  try {
-    const url = new URL(req.url)
-    const page = Math.max(1, parseInt(url.searchParams.get('page')) || 1)
-    const pageSize = Math.min(200, Math.max(1, parseInt(url.searchParams.get('pageSize')) || 100))
-    const date = url.searchParams.get('date') || ''
-    const keyword = url.searchParams.get('keyword') || ''
-
-    const conditions = []
-    const params = []
-
-    if (date) { conditions.push('t.trade_date = ?'); params.push(date) }
-    if (keyword) { conditions.push('(t.stock_code LIKE ? OR t.stock_name LIKE ?)'); params.push(`%${keyword}%`, `%${keyword}%`) }
-
-    const where = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : ''
-
-    const [countRows] = await queryWithRetry(
-      `SELECT COUNT(*) as total FROM \`${TWENTY_CM_TABLE}\` t ${where}`, params
-    )
-    const total = countRows[0].total
-
-    const offset = (page - 1) * pageSize
-    const [data] = await queryWithRetry(
-      `SELECT t.id, t.trade_date, t.stock_code, t.stock_name
-       FROM \`${TWENTY_CM_TABLE}\` t
-       ${where}
-       ORDER BY t.trade_date DESC, t.stock_code ASC
-       LIMIT ? OFFSET ?`,
-      [...params, String(pageSize), String(offset)]
-    )
-
-    const formatted = data.map(row => ({
-      ...row,
-      trade_date: formatDate(row.trade_date),
     }))
 
     return jsonResponse({ total, page, pageSize, data: formatted })
