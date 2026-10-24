@@ -93,6 +93,23 @@ export default function LowerShadowPage() {
 
   return (
     <>
+      <div className="rule-box">
+        <div className="rule-title">模型规则：</div>
+        <ol>
+          <li><code>条件 1</code>：下影线同时穿过 MA5 和 MA10</li>
+          <li><code>条件 2</code>：下影线贯穿 MA5/MA10 交点</li>
+          <li><code>条件 3</code>：近 20 个交易日出现过涨停</li>
+        </ol>
+        <div className="rule-title">运行时间：</div>
+        <ol>
+          <li><code>12:07</code></li>
+          <li><code>13:07</code></li>
+          <li><code>16:30</code></li>
+        </ol>
+        <div className="rule-title">数据库表：</div>
+        <div><code>dwd_mkt_lower_shadow_cross_ma_d</code></div>
+      </div>
+
       <div className="page-header">
         <p>共 {total.toLocaleString()} 条记录</p>
       </div>

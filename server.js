@@ -516,12 +516,14 @@ app.get('/api/hob/stocks', async (req, res) => {
     const pageSize = Math.min(200, Math.max(1, parseInt(req.query.pageSize) || 100))
     const date = req.query.date || ''
     const keyword = req.query.keyword || ''
+    const phase = req.query.phase || 'after_close'
 
     const conditions = []
     const params = []
 
     if (date) { conditions.push('t.trade_date = ?'); params.push(date) }
     if (keyword) { conditions.push('(t.stock_code LIKE ? OR t.stock_name LIKE ?)'); params.push(`%${keyword}%`, `%${keyword}%`) }
+    if (phase && phase !== 'all') { conditions.push('t.phase = ?'); params.push(phase) }
 
     const where = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : ''
 
@@ -532,13 +534,13 @@ app.get('/api/hob/stocks', async (req, res) => {
 
     const offset = (page - 1) * pageSize
     const [data] = await pool.execute(
-      `SELECT t.id, t.trade_date, t.stock_code, t.stock_name,
+      `SELECT t.id, t.trade_date, t.run_time, t.stock_code, t.stock_name,
               t.open_pnl_pct, t.change_pct, t.turnover_rate,
               t.float_mkt_cap_amt, t.total_mkt_cap_amt,
               t.industry_sw, t.industry_zjh, t.concept_sectors
        FROM \`${HOB_TABLE}\` t
        ${where}
-       ORDER BY t.trade_date DESC, t.open_pnl_pct DESC, t.stock_code ASC
+       ORDER BY t.run_time DESC, t.open_pnl_pct DESC, t.stock_code ASC
        LIMIT ? OFFSET ?`,
       [...params, String(pageSize), String(offset)]
     )
@@ -546,6 +548,7 @@ app.get('/api/hob/stocks', async (req, res) => {
     const formatted = data.map(row => ({
       ...row,
       trade_date: formatDate(row.trade_date),
+      run_time: formatDateTime(row.run_time),
       open_pnl_pct: row.open_pnl_pct != null ? Number(row.open_pnl_pct) : null,
       change_pct: row.change_pct != null ? Number(row.change_pct) : null,
       turnover_rate: row.turnover_rate != null ? Number(row.turnover_rate) : null,
@@ -844,7 +847,8 @@ app.get('/api/profit-gap-break/stocks', async (req, res) => {
     if (date) { conditions.push('t.trade_date = ?'); params.push(date) }
     if (keyword) { conditions.push('(t.code LIKE ? OR t.name LIKE ?)'); params.push(`%${keyword}%`, `%${keyword}%`) }
     if (compareSource === PROFIT_GAP_BREAK_COMBINED) {
-      conditions.push(`(t.trade_date, t.code) IN (SELECT trade_date, code FROM \`${PROFIT_GAP_BREAK_TABLE}\` GROUP BY trade_date, code HAVING COUNT(DISTINCT compare_source) >= 2)`)
+      conditions.push('t.compare_source IN (?, ?)')
+      params.push('信号日比', '历史比')
     } else if (compareSource) { conditions.push('t.compare_source = ?'); params.push(compareSource) }
 
     const where = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : ''
@@ -999,6 +1003,107 @@ app.get('/api/yxfz/stocks', async (req, res) => {
     })
 
     res.json({ data: formatted, total, page, pageSize })
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// 一字 API
+const ONE_WORD_BOARD_TABLE = 'dwd_mkt_one_word_board_d'
+
+app.get('/api/one-word-board/dates', async (req, res) => {
+  try {
+    const [rows] = await pool.execute(
+      `SELECT DISTINCT trade_date FROM \`${ONE_WORD_BOARD_TABLE}\` ORDER BY trade_date DESC`
+    )
+    res.json(rows.map(r => formatDate(r.trade_date)))
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+app.get('/api/one-word-board/stocks', async (req, res) => {
+  try {
+    const page = Math.max(1, parseInt(req.query.page) || 1)
+    const pageSize = Math.min(200, Math.max(1, parseInt(req.query.pageSize) || 100))
+    const date = req.query.date || ''
+    const boardType = req.query.boardType || ''
+    const keyword = req.query.keyword || ''
+
+    const conditions = []
+    const params = []
+
+    if (date) { conditions.push('t.trade_date = ?'); params.push(date) }
+    if (boardType) { conditions.push('t.board_type = ?'); params.push(boardType) }
+    if (keyword) { conditions.push('(t.stock_code LIKE ? OR t.stock_name LIKE ?)'); params.push(`%${keyword}%`, `%${keyword}%`) }
+
+    const where = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : ''
+
+    const [countRows] = await pool.execute(
+      `SELECT COUNT(*) as total FROM \`${ONE_WORD_BOARD_TABLE}\` t ${where}`, params
+    )
+    const total = countRows[0].total
+
+    const offset = (page - 1) * pageSize
+    const [data] = await pool.execute(
+      `SELECT t.id, t.trade_date, t.stock_code, t.stock_name, t.exchange, t.board_type,
+              t.limit_pct, t.industry_name, t.prev_close_price, t.open_price, t.high_price,
+              t.low_price, t.close_price, t.limit_up_price, t.change_pct,
+              t.limit_up_days, t.limit_up_stat, t.first_seal_time, t.last_seal_time,
+              t.break_cnt, t.trade_amt, t.turnover_rate, t.seal_fund_amt,
+              t.float_mkt_cap_amt, t.total_mkt_cap_amt
+       FROM \`${ONE_WORD_BOARD_TABLE}\` t
+       ${where}
+       ORDER BY t.trade_date DESC, t.limit_up_days DESC, t.stock_code ASC
+       LIMIT ? OFFSET ?`,
+      [...params, String(pageSize), String(offset)]
+    )
+
+    const formatted = data.map(row => ({
+      ...row,
+      trade_date: formatDate(row.trade_date),
+      first_seal_time: row.first_seal_time ? String(row.first_seal_time).slice(0, 8) : null,
+      last_seal_time: row.last_seal_time ? String(row.last_seal_time).slice(0, 8) : null,
+      limit_pct: row.limit_pct != null ? Number(row.limit_pct) : null,
+      prev_close_price: row.prev_close_price != null ? Number(row.prev_close_price) : null,
+      open_price: row.open_price != null ? Number(row.open_price) : null,
+      high_price: row.high_price != null ? Number(row.high_price) : null,
+      low_price: row.low_price != null ? Number(row.low_price) : null,
+      close_price: row.close_price != null ? Number(row.close_price) : null,
+      limit_up_price: row.limit_up_price != null ? Number(row.limit_up_price) : null,
+      change_pct: row.change_pct != null ? Number(row.change_pct) : null,
+      turnover_rate: row.turnover_rate != null ? Number(row.turnover_rate) : null,
+    }))
+
+    res.json({ total, page, pageSize, data: formatted })
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// 周末投票 API
+const WEEKEND_VOTE_TABLE = 'ads_mkt_weekend_vote_d'
+
+app.get('/api/weekend-vote/data', async (req, res) => {
+  try {
+    const [data] = await pool.execute(
+      `SELECT vote_date, bull_pct, bear_pct, flat_pct,
+              sz_comp_index, long_short_diff, vote_count
+       FROM \`${WEEKEND_VOTE_TABLE}\`
+       ORDER BY vote_date DESC`
+    )
+
+    const formatted = data.map(row => ({
+      vote_date: formatDate(row.vote_date),
+      bull_pct: row.bull_pct != null ? Number(row.bull_pct) : null,
+      bear_pct: row.bear_pct != null ? Number(row.bear_pct) : null,
+      flat_pct: row.flat_pct != null ? Number(row.flat_pct) : null,
+      sz_comp_index: row.sz_comp_index != null ? Number(row.sz_comp_index) : null,
+      long_short_diff: row.long_short_diff != null ? Number(row.long_short_diff) : null,
+      vote_count: row.vote_count != null ? Number(row.vote_count) : null,
+    }))
+
+    res.json(formatted)
   } catch (err) {
     res.status(500).json({ error: err.message })
   }

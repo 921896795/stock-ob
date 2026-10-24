@@ -1,4 +1,4 @@
-import { handleDates, handleSectors, handleSourceTables, handleStocks, handleNewHighDates, handleNewHighStocks, handleFirstHighDates, handleFirstHighFirstDates, handleFirstHighStocks, handleSentimentData, handleSentimentAfterHours, handleSectorRankDates, handleSectorRankIndustries, handleSectorRankData, handleLianbanDates, handleLianbanStocks, handleHobDates, handleHobStocks, handleZbDates, handleZbStocks, handleLowerShadowDates, handleLowerShadowStocks, handleTwentyCmDates, handleTwentyCmStocks, handleProfitGapDates, handleProfitGapCounts, handleProfitGapStocks, handleProfitGapBreakDates, handleProfitGapBreakStocks, handleMidTermIndexData, handleYxfzDates, handleYxfzSources, handleYxfzStocks } from './helpers.js'
+import { handleDates, handleSectors, handleSourceTables, handleStocks, handleNewHighDates, handleNewHighStocks, handleFirstHighDates, handleFirstHighFirstDates, handleFirstHighStocks, handleSentimentData, handleSentimentAfterHours, handleSectorRankDates, handleSectorRankIndustries, handleSectorRankData, handleLianbanDates, handleLianbanStocks, handleHobDates, handleHobStocks, handleZbDates, handleZbStocks, handleLowerShadowDates, handleLowerShadowStocks, handleTwentyCmDates, handleTwentyCmStocks, handleProfitGapDates, handleProfitGapCounts, handleProfitGapStocks, handleProfitGapBreakDates, handleProfitGapBreakStocks, handleMidTermIndexData, handleYxfzDates, handleYxfzSources, handleYxfzStocks, handleOneWordBoardDates, handleOneWordBoardStocks, handleWeekendVoteData } from './helpers.js'
 
 const TABLES = {
   huicai: 'aads_回踩和新高表',
@@ -8,7 +8,7 @@ const TABLES = {
 export default async (req) => {
   const url = new URL(req.url)
   const parts = url.pathname.split('/').filter(Boolean)
-  const tableKey = parts.find(p => TABLES[p] || p === 'newhigh' || p === 'firsthigh' || p === 'sentiment' || p === 'sector-rank' || p === 'lianban' || p === 'hob' || p === 'zb' || p === 'lower-shadow' || p === '20cm' || p === 'profit-gap' || p === 'profit-gap-break' || p === 'midterm-index' || p === 'yxfz')
+  const tableKey = parts.find(p => TABLES[p] || p === 'newhigh' || p === 'firsthigh' || p === 'sentiment' || p === 'sector-rank' || p === 'lianban' || p === 'hob' || p === 'zb' || p === 'lower-shadow' || p === '20cm' || p === 'profit-gap' || p === 'profit-gap-break' || p === 'midterm-index' || p === 'yxfz' || p === 'one-word-board' || p === 'weekend-vote')
   const action = parts[parts.length - 1]
 
   if (tableKey === 'hob') {
@@ -76,6 +76,25 @@ export default async (req) => {
       if (action === 'dates') return await handleYxfzDates()
       if (action === 'sources') return await handleYxfzSources()
       if (action === 'stocks') return await handleYxfzStocks(req)
+      return new Response(JSON.stringify({ error: 'Invalid action' }), { status: 400 })
+    } catch (err) {
+      return new Response(JSON.stringify({ error: err.message }), { status: 500 })
+    }
+  }
+
+  if (tableKey === 'one-word-board') {
+    try {
+      if (action === 'dates') return await handleOneWordBoardDates()
+      if (action === 'stocks') return await handleOneWordBoardStocks(req)
+      return new Response(JSON.stringify({ error: 'Invalid action' }), { status: 400 })
+    } catch (err) {
+      return new Response(JSON.stringify({ error: err.message }), { status: 500 })
+    }
+  }
+
+  if (tableKey === 'weekend-vote') {
+    try {
+      if (action === 'data') return await handleWeekendVoteData()
       return new Response(JSON.stringify({ error: 'Invalid action' }), { status: 400 })
     } catch (err) {
       return new Response(JSON.stringify({ error: err.message }), { status: 500 })

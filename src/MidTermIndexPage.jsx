@@ -82,11 +82,20 @@ function SignalChart({ stats }) {
         {SERIES.map(se => stats.map((s, i) => {
           const active = hover === i
           return (
-            <circle
-              key={se.key + i} cx={x(i)} cy={y(s[se.key])} r={active ? 4.5 : 2.5}
-              fill={se.color} stroke={active ? '#fff' : 'none'} strokeWidth={active ? 1.5 : 0}
-              pointerEvents="none"
-            />
+            <g key={se.key + i}>
+              {active && (
+                <line
+                  x1={padL} x2={W - padR} y1={y(s[se.key])} y2={y(s[se.key])}
+                  stroke={se.color} strokeWidth={1} strokeDasharray="4 3" opacity={0.7}
+                  pointerEvents="none"
+                />
+              )}
+              <circle
+                cx={x(i)} cy={y(s[se.key])} r={active ? 4.5 : 2.5}
+                fill={se.color} stroke={active ? '#fff' : 'none'} strokeWidth={active ? 1.5 : 0}
+                pointerEvents="none"
+              />
+            </g>
           )
         }))}
         {cur && (

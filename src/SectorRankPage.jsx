@@ -39,6 +39,15 @@ export default function SectorRankPage() {
 
   return (
     <>
+      <div className="rule-box">
+        <div className="rule-title">运行时间：</div>
+        <div>工作日 <code>16:00 / 17:00 / 18:00</code>（3 次/日）</div>
+        <div className="rule-title">数据库表：</div>
+        <div><code>ods_spider_xgt_sector_di</code></div>
+        <div className="rule-title">单次耗时：</div>
+        <div>中位数 <code>1.5s</code>，P90 <code>2.2s</code>，最长 <code>39.6s</code>；86% 在 <code>2s</code> 内完成</div>
+      </div>
+
       <div className="filter-bar">
         <Input.Search
           placeholder="搜索板块名称" style={{ width: 240 }}

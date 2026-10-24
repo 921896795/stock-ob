@@ -15,28 +15,32 @@ import ProfitGapPage from './ProfitGapPage'
 import ProfitGapBreakPage from './ProfitGapBreakPage'
 import MidTermIndexPage from './MidTermIndexPage'
 import YxfzPage from './YxfzPage'
+import OneWordBoardPage from './OneWordBoardPage'
+import WeekendVotePage from './WeekendVotePage'
 
 const MODELS = [
   {
     key: 'index',
     label: '指数模型',
     tabs: [
-      { key: 'afterhours', label: '涨跌分布', component: 'afterhours' },
+      { key: 'afterhours', label: '涨跌分布', component: 'afterhours', highlight: true },
       { key: 'sectorrank', label: '板块排行', component: 'sectorrank' },
       { key: 'midterm-index', label: '中期指数', component: 'midterm-index' },
+      { key: 'weekend-vote', label: '周末投票', component: 'weekend-vote' },
     ],
   },
   {
     key: 'stock',
     label: '选股模型',
     tabs: [
-      { key: 'huicai', label: '回踩和新高回踩', apiPath: '/api/huicai', excludeSoleSource: 'model_platform_610' },
+      { key: 'huicai', label: '回踩和新高回踩', apiPath: '/api/huicai', excludeSoleSource: 'model_platform_610', highlight: true },
       { key: 'lianban', label: '连扳潜伏', component: 'lianban' },
-      { key: 'hob', label: '高开大阴', component: 'hob' },
+      { key: 'one-word-board', label: '一字', component: 'one-word-board' },
+      { key: 'hob', label: '高开大阴', component: 'hob', highlight: true },
       { key: 'zb', label: '活跃炸板', component: 'zb' },
-      { key: 'lower-shadow', label: '510', component: 'lower-shadow' },
+      { key: 'lower-shadow', label: '510', component: 'lower-shadow', highlight: true },
       { key: 'profit-gap', label: '利润断层', component: 'profit-gap' },
-      { key: 'profit-gap-break', label: '利润断层突破', component: 'profit-gap-break' },
+      { key: 'profit-gap-break', label: '利润断层突破', component: 'profit-gap-break', highlight: true },
       { key: 'yxfz', label: '月线反转', component: 'yxfz' },
       { key: 'newhigh', label: '7天频繁新高（200+）', component: 'newhigh' },
       { key: 'firsthigh', label: '7天首次新高（200+）', component: 'firsthigh' },
@@ -60,6 +64,7 @@ export default function App() {
     if (t.component === 'afterhours') return <SentimentPage apiPath="/api/sentiment/after-hours" />
     if (t.component === 'sectorrank') return <SectorRankPage />
     if (t.component === 'lianban') return <LianbanPage />
+    if (t.component === 'one-word-board') return <OneWordBoardPage />
     if (t.component === 'hob') return <HobPage />
     if (t.component === 'zb') return <ZbPage />
     if (t.component === 'lower-shadow') return <LowerShadowPage />
@@ -67,6 +72,7 @@ export default function App() {
     if (t.component === 'profit-gap') return <ProfitGapPage />
     if (t.component === 'profit-gap-break') return <ProfitGapBreakPage />
     if (t.component === 'midterm-index') return <MidTermIndexPage />
+    if (t.component === 'weekend-vote') return <WeekendVotePage />
     if (t.component === 'yxfz') return <YxfzPage />
     return <StockPage apiPath={t.apiPath} excludeSoleSource={t.excludeSoleSource} />
   }
@@ -97,7 +103,9 @@ export default function App() {
                       className={activeTab === t.key ? 'tab-btn active' : 'tab-btn'}
                       onClick={() => setActiveTab(t.key)}
                     >
-                      {t.label}
+                      {t.highlight ? (
+                        <span style={{ color: '#cf1322' }}>{t.label}</span>
+                      ) : t.label}
                     </button>
                   ))}
                 </div>

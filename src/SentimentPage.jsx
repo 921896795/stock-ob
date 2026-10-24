@@ -83,13 +83,13 @@ function useContainerWidth() {
   return [ref, width]
 }
 
-function LineChart({ data, series, refLines = [], height = 320 }) {
+export function LineChart({ data, series, refLines = [], height = 320, dateKey = 'snap_time' }) {
   const [boxRef, width] = useContainerWidth()
   const [hoverIdx, setHoverIdx] = useState(null)
 
   const points = useMemo(
-    () => [...data].sort((a, b) => (a.snap_time < b.snap_time ? -1 : 1)),
-    [data]
+    () => [...data].sort((a, b) => (a[dateKey] < b[dateKey] ? -1 : 1)),
+    [data, dateKey]
   )
 
   const leftSeries = series.filter(s => s.axis !== 'right')
@@ -188,8 +188,8 @@ function LineChart({ data, series, refLines = [], height = 320 }) {
         ))}
         {points.map((d, i) =>
           (i % labelStep === 0 || i === points.length - 1) ? (
-            <text key={d.snap_time} x={x(i)} y={height - 16} textAnchor="middle" fontSize="11" fill="#8c8c8c">
-              {String(d.snap_time).slice(5)}
+            <text key={d[dateKey]} x={x(i)} y={height - 16} textAnchor="middle" fontSize="11" fill="#8c8c8c">
+              {String(d[dateKey]).slice(5)}
             </text>
           ) : null
         )}
@@ -208,11 +208,14 @@ function LineChart({ data, series, refLines = [], height = 320 }) {
             {series.map(s => {
               const v = num(hover[s.key])
               return v == null ? null : (
-                <circle key={s.key} cx={x(hoverIdx)} cy={yOf(s, v)} r="3.5" fill="#fff" stroke={s.color} strokeWidth="2" />
+                <g key={s.key}>
+                  <line x1={padL} x2={padL + innerW} y1={yOf(s, v)} y2={yOf(s, v)} stroke={s.color} strokeWidth="1" strokeDasharray="4 4" opacity="0.7" />
+                  <circle cx={x(hoverIdx)} cy={yOf(s, v)} r="3.5" fill="#fff" stroke={s.color} strokeWidth="2" />
+                </g>
               )
             })}
             <rect x={tipX} y={padT} width={tipW} height={26 + series.length * 17} rx="6" fill="rgba(0,0,0,0.78)" />
-            <text x={tipX + 12} y={padT + 22} fontSize="12" fill="#fff" fontWeight="600">{hover.snap_time}</text>
+            <text x={tipX + 12} y={padT + 22} fontSize="12" fill="#fff" fontWeight="600">{hover[dateKey]}</text>
             {series.map((s, i) => (
               <text key={s.key} x={tipX + 12} y={padT + 42 + i * 17} fontSize="12" fill="#fff">
                 {s.label}: {hover[s.key] ?? '-'}
@@ -305,6 +308,13 @@ export default function SentimentPage({ apiPath = '/api/sentiment/data' }) {
 
   return (
     <>
+      <div className="rule-box">
+        <div className="rule-title">运行时间：</div>
+        <div><code>09:33 / 10:03 / 10:33 / 11:03 / 11:33 / 13:03 / 13:33 / 14:03 / 14:33 / 15:03</code></div>
+        <div className="rule-title">数据库表：</div>
+        <div><code>dws_mkt_sentiment_d</code></div>
+      </div>
+
       <div className="page-header">
         <p>
           共 {rawData.length} 个交易日
