@@ -1,4 +1,4 @@
-import { handleDates, handleSectors, handleSourceTables, handleStocks, handleNewHighDates, handleNewHighStocks, handleFirstHighDates, handleFirstHighFirstDates, handleFirstHighStocks, handleSentimentData, handleSentimentAfterHours, handleSectorRankDates, handleSectorRankIndustries, handleSectorRankData, handleLianbanDates, handleLianbanStocks, handleHobDates, handleHobStocks, handleZbDates, handleZbStocks, handleLowerShadowDates, handleLowerShadowStocks, handleTwentyCmDates, handleTwentyCmStocks, handleProfitGapDates, handleProfitGapCounts, handleProfitGapStocks, handleProfitGapBreakDates, handleProfitGapBreakStocks, handleMidTermIndexData, handleYxfzDates, handleYxfzSources, handleYxfzStocks, handleOneWordBoardDates, handleOneWordBoardStocks, handleWeekendVoteData } from './helpers.js'
+import { handleDates, handleSectors, handleSourceTables, handleStocks, handleNewHighDates, handleNewHighStocks, handleFirstHighDates, handleFirstHighFirstDates, handleFirstHighStocks, handleSentimentData, handleSentimentAfterHours, handleSectorRankDates, handleSectorRankIndustries, handleSectorRankData, handleLianbanDates, handleLianbanStocks, handleHobDates, handleHobStocks, handleZbDates, handleZbStocks, handleLowerShadowDates, handleLowerShadowStocks, handleTwentyCmDates, handleTwentyCmStocks, handleProfitGapDates, handleProfitGapCounts, handleProfitGapStocks, handleProfitGapBreakDates, handleProfitGapBreakStocks, handleMidTermIndexData, handleYxfzDates, handleYxfzSources, handleYxfzStocks, handleOneWordBoardDates, handleOneWordBoardStocks, handleWeekendVoteData, handleSectorRpsDates, handleSectorRpsStocks, handleStockRpsDates, handleStockRpsStocks } from './helpers.js'
 
 const TABLES = {
   huicai: 'aads_回踩和新高表',
@@ -8,7 +8,7 @@ const TABLES = {
 export default async (req) => {
   const url = new URL(req.url)
   const parts = url.pathname.split('/').filter(Boolean)
-  const tableKey = parts.find(p => TABLES[p] || p === 'newhigh' || p === 'firsthigh' || p === 'sentiment' || p === 'sector-rank' || p === 'lianban' || p === 'hob' || p === 'zb' || p === 'lower-shadow' || p === '20cm' || p === 'profit-gap' || p === 'profit-gap-break' || p === 'midterm-index' || p === 'yxfz' || p === 'one-word-board' || p === 'weekend-vote')
+  const tableKey = parts.find(p => TABLES[p] || p === 'newhigh' || p === 'firsthigh' || p === 'sentiment' || p === 'sector-rank' || p === 'lianban' || p === 'hob' || p === 'zb' || p === 'lower-shadow' || p === '20cm' || p === 'profit-gap' || p === 'profit-gap-break' || p === 'midterm-index' || p === 'yxfz' || p === 'one-word-board' || p === 'weekend-vote' || p === 'sector-rps' || p === 'stock-rps')
   const action = parts[parts.length - 1]
 
   if (tableKey === 'hob') {
@@ -95,6 +95,26 @@ export default async (req) => {
   if (tableKey === 'weekend-vote') {
     try {
       if (action === 'data') return await handleWeekendVoteData()
+      return new Response(JSON.stringify({ error: 'Invalid action' }), { status: 400 })
+    } catch (err) {
+      return new Response(JSON.stringify({ error: err.message }), { status: 500 })
+    }
+  }
+
+  if (tableKey === 'sector-rps') {
+    try {
+      if (action === 'dates') return await handleSectorRpsDates()
+      if (action === 'stocks') return await handleSectorRpsStocks(req)
+      return new Response(JSON.stringify({ error: 'Invalid action' }), { status: 400 })
+    } catch (err) {
+      return new Response(JSON.stringify({ error: err.message }), { status: 500 })
+    }
+  }
+
+  if (tableKey === 'stock-rps') {
+    try {
+      if (action === 'dates') return await handleStockRpsDates()
+      if (action === 'stocks') return await handleStockRpsStocks(req)
       return new Response(JSON.stringify({ error: 'Invalid action' }), { status: 400 })
     } catch (err) {
       return new Response(JSON.stringify({ error: err.message }), { status: 500 })

@@ -17,6 +17,8 @@ import MidTermIndexPage from './MidTermIndexPage'
 import YxfzPage from './YxfzPage'
 import OneWordBoardPage from './OneWordBoardPage'
 import WeekendVotePage from './WeekendVotePage'
+import SectorRpsPage from './SectorRpsPage'
+import StockRpsPage from './StockRpsPage'
 
 const MODELS = [
   {
@@ -24,9 +26,16 @@ const MODELS = [
     label: '指数模型',
     tabs: [
       { key: 'afterhours', label: '涨跌分布', component: 'afterhours', highlight: true },
-      { key: 'sectorrank', label: '板块排行', component: 'sectorrank' },
       { key: 'midterm-index', label: '中期指数', component: 'midterm-index' },
       { key: 'weekend-vote', label: '周末投票', component: 'weekend-vote' },
+    ],
+  },
+  {
+    key: 'sector',
+    label: '板块模型',
+    tabs: [
+      { key: 'sectorrank', label: '板块排行', component: 'sectorrank' },
+      { key: 'sector-rps', label: '板块RPS', component: 'sector-rps' },
     ],
   },
   {
@@ -42,6 +51,7 @@ const MODELS = [
       { key: 'profit-gap', label: '利润断层', component: 'profit-gap' },
       { key: 'profit-gap-break', label: '利润断层突破', component: 'profit-gap-break', highlight: true },
       { key: 'yxfz', label: '月线反转', component: 'yxfz' },
+      { key: 'stock-rps', label: '个股RPS', component: 'stock-rps' },
       { key: 'newhigh', label: '7天频繁新高（200+）', component: 'newhigh' },
       { key: 'firsthigh', label: '7天首次新高（200+）', component: 'firsthigh' },
     ],
@@ -74,6 +84,8 @@ export default function App() {
     if (t.component === 'midterm-index') return <MidTermIndexPage />
     if (t.component === 'weekend-vote') return <WeekendVotePage />
     if (t.component === 'yxfz') return <YxfzPage />
+    if (t.component === 'sector-rps') return <SectorRpsPage />
+    if (t.component === 'stock-rps') return <StockRpsPage />
     return <StockPage apiPath={t.apiPath} excludeSoleSource={t.excludeSoleSource} />
   }
 

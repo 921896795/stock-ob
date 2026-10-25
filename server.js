@@ -689,6 +689,169 @@ app.get('/api/lower-shadow/stocks', async (req, res) => {
   }
 })
 
+// 板块RPS API
+const SECTOR_RPS_TABLE = 'dwd_mkt_index_rps_d'
+
+app.get('/api/sector-rps/dates', async (req, res) => {
+  try {
+    const [rows] = await pool.execute(
+      `SELECT DISTINCT trade_date FROM \`${SECTOR_RPS_TABLE}\` ORDER BY trade_date DESC`
+    )
+    res.json(rows.map(r => formatDate(r.trade_date)))
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+app.get('/api/sector-rps/stocks', async (req, res) => {
+  try {
+    const page = Math.max(1, parseInt(req.query.page) || 1)
+    const pageSize = Math.min(200, Math.max(1, parseInt(req.query.pageSize) || 100))
+    const date = req.query.date || ''
+    const exchange = req.query.exchange || ''
+    const keyword = req.query.keyword || ''
+
+    const conditions = []
+    const params = []
+
+    if (date) { conditions.push('t.trade_date = ?'); params.push(date) }
+    if (exchange) { conditions.push('t.exchange = ?'); params.push(exchange) }
+    if (keyword) { conditions.push('(t.index_code LIKE ? OR t.index_name LIKE ?)'); params.push(`%${keyword}%`, `%${keyword}%`) }
+
+    const where = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : ''
+
+    const [countRows] = await pool.execute(
+      `SELECT COUNT(*) as total FROM \`${SECTOR_RPS_TABLE}\` t ${where}`, params
+    )
+    const total = countRows[0].total
+
+    const offset = (page - 1) * pageSize
+    const [data] = await pool.execute(
+      `SELECT t.id, t.trade_date, t.index_code, t.index_name, t.exchange,
+              t.close_price, t.volume, t.amount,
+              t.rps_5d, t.rps_10d, t.rps_15d, t.rps_20d, t.rps_50d,
+              t.rank_5d, t.rank_10d, t.rank_15d, t.rank_20d, t.rank_50d,
+              t.red_cnt, t.is_triple_red
+       FROM \`${SECTOR_RPS_TABLE}\` t
+       ${where}
+       ORDER BY t.trade_date DESC, t.rps_50d DESC, t.index_code ASC
+       LIMIT ? OFFSET ?`,
+      [...params, String(pageSize), String(offset)]
+    )
+
+    const formatted = data.map(row => ({
+      ...row,
+      trade_date: formatDate(row.trade_date),
+      close_price: row.close_price != null ? Number(row.close_price) : null,
+      rps_5d: row.rps_5d != null ? Number(row.rps_5d) : null,
+      rps_10d: row.rps_10d != null ? Number(row.rps_10d) : null,
+      rps_15d: row.rps_15d != null ? Number(row.rps_15d) : null,
+      rps_20d: row.rps_20d != null ? Number(row.rps_20d) : null,
+      rps_50d: row.rps_50d != null ? Number(row.rps_50d) : null,
+      amount: row.amount != null ? Number(row.amount) : null,
+      volume: row.volume != null ? Number(row.volume) : null,
+    }))
+
+    res.json({ total, page, pageSize, data: formatted })
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// 个股RPS API
+const STOCK_RPS_TABLE = 'dwd_mkt_stock_rps_d'
+// RPS 表本身没有股票名称，从板块映射表取（同一代码名称唯一）
+const STOCK_NAME_SUBQUERY =
+  '(SELECT stock_code, MIN(stock_name) AS stock_name FROM `marry_stock_sector_2639` GROUP BY stock_code)'
+const STOCK_RPS_COLUMNS = `t.trade_date, t.stock_code, t.close_price,
+  t.rps_5d, t.rps_10d, t.rps_20d, t.rps_50d, t.rps_120d, t.rps_250d,
+  t.is_red_5d, t.is_red_10d, t.is_red_20d, t.is_red_50d, t.is_red_120d, t.is_red_250d,
+  t.red_cnt, t.is_triple_red`
+
+app.get('/api/stock-rps/dates', async (req, res) => {
+  try {
+    const [rows] = await pool.execute(
+      `SELECT DISTINCT trade_date FROM \`${STOCK_RPS_TABLE}\` ORDER BY trade_date DESC`
+    )
+    res.json(rows.map(r => formatDate(r.trade_date)))
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+app.get('/api/stock-rps/stocks', async (req, res) => {
+  try {
+    const page = Math.max(1, parseInt(req.query.page) || 1)
+    const pageSize = Math.min(200, Math.max(1, parseInt(req.query.pageSize) || 100))
+    const date = req.query.date || ''
+    const keyword = req.query.keyword || ''
+
+    const conditions = []
+    const params = []
+
+    if (date) { conditions.push('t.trade_date = ?'); params.push(date) }
+    if (keyword) {
+      conditions.push(`(CONVERT(t.stock_code USING utf8mb4) COLLATE utf8mb4_general_ci LIKE ?
+        OR CONVERT(nm.stock_name USING utf8mb4) COLLATE utf8mb4_general_ci LIKE ?)`)
+      params.push(`%${keyword}%`, `%${keyword}%`)
+    }
+
+    const where = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : ''
+    const countJoin = keyword ? `LEFT JOIN ${STOCK_NAME_SUBQUERY} nm ON nm.stock_code = t.stock_code` : ''
+
+    const [countRows] = await pool.execute(
+      `SELECT COUNT(*) as total FROM \`${STOCK_RPS_TABLE}\` t ${countJoin} ${where}`, params,
+    )
+    const total = countRows[0].total
+
+    const offset = (page - 1) * pageSize
+    // 无关键词时先按索引排序取一页，再关联名称，避免对 380 万行整体排序
+    const dataSql = keyword
+      ? `SELECT ${STOCK_RPS_COLUMNS}, nm.stock_name
+         FROM \`${STOCK_RPS_TABLE}\` t
+         LEFT JOIN ${STOCK_NAME_SUBQUERY} nm ON nm.stock_code = t.stock_code
+         ${where}
+         ORDER BY t.trade_date DESC, t.rps_50d DESC, t.stock_code ASC
+         LIMIT ? OFFSET ?`
+      : `SELECT d.*, nm.stock_name
+         FROM (
+           SELECT ${STOCK_RPS_COLUMNS}
+           FROM \`${STOCK_RPS_TABLE}\` t
+           ${where}
+           ORDER BY t.trade_date DESC, t.rps_50d DESC, t.stock_code ASC
+           LIMIT ? OFFSET ?
+         ) d
+         LEFT JOIN ${STOCK_NAME_SUBQUERY} nm ON nm.stock_code = d.stock_code
+         ORDER BY d.trade_date DESC, d.rps_50d DESC, d.stock_code ASC`
+
+    const [data] = await pool.execute(dataSql, [...params, String(pageSize), String(offset)])
+
+    const formatted = data.map(row => ({
+      ...row,
+      trade_date: formatDate(row.trade_date),
+      close_price: row.close_price != null ? Number(row.close_price) : null,
+      rps_5d: row.rps_5d != null ? Number(row.rps_5d) : null,
+      rps_10d: row.rps_10d != null ? Number(row.rps_10d) : null,
+      rps_20d: row.rps_20d != null ? Number(row.rps_20d) : null,
+      rps_50d: row.rps_50d != null ? Number(row.rps_50d) : null,
+      rps_120d: row.rps_120d != null ? Number(row.rps_120d) : null,
+      rps_250d: row.rps_250d != null ? Number(row.rps_250d) : null,
+      is_red_5d: row.is_red_5d != null ? Number(row.is_red_5d) : null,
+      is_red_10d: row.is_red_10d != null ? Number(row.is_red_10d) : null,
+      is_red_20d: row.is_red_20d != null ? Number(row.is_red_20d) : null,
+      is_red_50d: row.is_red_50d != null ? Number(row.is_red_50d) : null,
+      is_red_120d: row.is_red_120d != null ? Number(row.is_red_120d) : null,
+      is_red_250d: row.is_red_250d != null ? Number(row.is_red_250d) : null,
+      red_cnt: row.red_cnt != null ? Number(row.red_cnt) : null,
+      is_triple_red: row.is_triple_red != null ? Number(row.is_triple_red) : null,
+    }))
+
+    res.json({ total, page, pageSize, data: formatted })
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
 // 20冰点活跃 API
 const TWENTY_CM_TABLE = 'dwd_sig_20cm_di'
 
